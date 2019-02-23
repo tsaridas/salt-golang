@@ -16,15 +16,15 @@ A Salstack minion that connects to the saltstack master and receives events. Thi
 ## API
 An HTTP api that recevies a request sends them to the minion and gives the response. 
 
-## Main classes
-api-event-listener.go : Will initialize an event listener. Needs to be ran a on salt master server.
+## Runnables
+eventlistener/event-listener.go : Will initialize an event listener. Needs to be ran a on salt master server.
 
 salt.go : Will run a salt command to a minion. Needs to be ran from a salt master server.
 ```
 Example : go run salt.go -L minion test.ping
 ```
 
-api/main.go : Will initialize a http api. Needs to be ran on a salt master server.
+api/salt-api.go : Will initialize a http api. Needs to be ran on a salt master server.
 
 salt-minion/salt-minion.go : Will start a subscriber that connects to a salt master server. You need to define -id and --masterip in args.
 ```
