@@ -24,3 +24,8 @@ salt.go : Will run a salt command to a minion. Needs to be ran from a salt maste
 api/main.go : Will initialize a http api. Needs to be ran on a salt master server.
 
 salt-minion/salt-minion.go : Will start a subscriber that connects to a salt master server. You need to change salt master ip in the code.
+
+## Requirements
+go get github.com/pebbe/zmq4
+go get github.com/vmihailenco/msgpack
+yum install zeromq-devel -y
