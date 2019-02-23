@@ -33,11 +33,12 @@ Example: go run salt-minion.go -id salt-minion-01 --masterip 192.168.1.1
 
 ## Requirements
 ```
-go get github.com/pebbe/zmq4
-
-go get github.com/vmihailenco/msgpack
-
 yum install zeromq-devel -y
+```
+
+## Installation
+```
+go get github.com/tsaridas/salt-event-listener-golang
 ```
 
 ## Tested
