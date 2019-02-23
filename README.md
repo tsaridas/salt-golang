@@ -5,6 +5,7 @@ This is me trying to learn some golang and had the idea to write a salt client t
 
 ## Client
 A Saltstack client to sent commands from the master directly to the zmq port 4506 written in go.
+
 Example : salt -L minion test.ping
 
 ## Event Listener (listener)
@@ -26,9 +27,12 @@ api/main.go : Will initialize a http api. Needs to be ran on a salt master serve
 salt-minion/salt-minion.go : Will start a subscriber that connects to a salt master server. You need to change salt master ip in the code.
 
 var SaltMasterPull = "tcp://YOURSALTMASTERIP4506"
+
 var SaltMasterPub = "tcp://YOURSALTMASTERIP:4505"
 
 ## Requirements
 go get github.com/pebbe/zmq4
+
 go get github.com/vmihailenco/msgpack
+
 yum install zeromq-devel -y

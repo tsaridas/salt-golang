@@ -28,7 +28,6 @@ func check(e error) {
 }
 
 type Something struct {
-	// Load   map[string]interface{}	`msgpack:"load"`
 	Load Event  `msgpack:"load"`
 	Enc  string `msgpack:"enc"`
 }
@@ -52,8 +51,6 @@ func sendJob(jid string, wg sync.WaitGroup, module string, arg []string) {
 
 	delimiter := map[string]interface{}{"delimiter": ":", "show_timeout": true, "show_jid": false}
 	load := map[string]interface{}{"tgt_type": "list", "jid": jid, "cmd": "publish", "tgt": tgt, "key": dat, "arg": arg, "fun": module, "kwargs": delimiter, "ret": "", "user": "root"}
-	//load := map[string]interface{}{"tgt_type": "list", "jid": jid, "cmd": "publish", "tgt": tgt, "key": dat, "arg": arg, "fun": "test.ping", "kwargs": delimiter, "ret": "", "user": "root"}
-	// load := map[string]interface{}{"tgt_type": "list", "jid": jid, "cmd": "publish", "tgt": tgt, "key": dat, "arg": arg, "fun": "test.get_opts", "kwargs": delimiter, "ret": "", "user": "root"}
 	msg := map[string]interface{}{"load": load, "enc": "clear"}
 	
 	b, err := msgpack.Marshal(msg)
@@ -65,7 +62,6 @@ func sendJob(jid string, wg sync.WaitGroup, module string, arg []string) {
 	}
 	session, _ := mdapi.NewMdcli("tcp://127.0.0.1:4506", verbose)
 	
-	//time.Sleep(60 * time.Second)
 	defer session.Close()
 	s := string(b)
 	ret, err := session.Send(s)
@@ -77,7 +73,6 @@ func sendJob(jid string, wg sync.WaitGroup, module string, arg []string) {
 	}
 	byte_result := []byte(ret[0])
 	var item Something
-	// var item map[string]interface{}
 	err = msgpack.Unmarshal(byte_result, &item)
 	check(err)
 }
@@ -125,7 +120,6 @@ func reader(wg sync.WaitGroup, m map[string]bool, jid string, module string, arg
 				log.Println("Could not unmarshall", err)
 				continue
 			}
-			// fmt.Println(item1)
 			result_all := fmt.Sprint(item1["body"])
 			result_list := strings.SplitN(result_all, "\n\n", 2)
 			result_tag := result_list[0]
