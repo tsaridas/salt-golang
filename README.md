@@ -5,7 +5,6 @@ This is me trying to learn some golang and had the idea to write a salt client t
 
 ## Client
 A Saltstack client to sent commands from the master directly to the zmq port 4506 written in go.
-
 Example : salt -L minion test.ping
 
 ## Event Listener (listener)
