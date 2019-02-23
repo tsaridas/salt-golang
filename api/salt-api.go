@@ -17,7 +17,7 @@ import (
 func GetPersonWithServer(s *listener.Server) httprouter.Handle {
 	return func(w http.ResponseWriter, req *http.Request, ps httprouter.Params) {
 		jid := client.GetJid()
-		tag := "salt/job/"+jid+"/ret/salt-minion-01"
+		tag := "salt/job/"+jid+"/ret/"+ps.ByName("minion-id")
 		ch2 := make(chan listener.Response, 1000)
 		s.Call(tag, ch2)
 		timeout := time.After(5 * time.Second)
@@ -39,9 +39,9 @@ func main() {
 	s := listener.NewServer()
 	go s.Loop()
 	go s.ReadMessages()
-	
+
 	router := httprouter.New()
-	router.GET("/", GetPersonWithServer(s))
+	router.GET("/:minion-id", GetPersonWithServer(s))
 	http.ListenAndServe("127.0.0.1:8080", router)
 
 }
