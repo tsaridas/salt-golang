@@ -2,7 +2,7 @@ package saltClient
 
 import (
 	"fmt"
-	"github.com/tsaridas/zmqapi"
+	"github.com/tsaridas/salt-event-listener-golang/zmqapi"
 	"github.com/vmihailenco/msgpack"
 	"io/ioutil"
 	"os"

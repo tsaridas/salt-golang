@@ -2,8 +2,8 @@ package main
 
 import (
 	"fmt"
-	client "github.com/tsaridas/client"
-	listener "github.com/tsaridas/listener"
+	client "github.com/tsaridas/salt-event-listener-golang/client"
+	listener "github.com/tsaridas/salt-event-listener-golang/listener"
 	"time"
 	"encoding/json"
 	"github.com/julienschmidt/httprouter"
