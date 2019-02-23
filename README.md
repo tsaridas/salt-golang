@@ -6,13 +6,12 @@ This is me trying to learn some golang and had the idea to write a salt client t
 ## Client
 A Saltstack client to sent commands from the master directly to the zmq port 4506 written in go.
 
-Example : salt -L minion test.ping
 
 ## Event Listener (listener)
 A Saltstack event listener listening for event from the unix socket.
 
 ## Salt-minion (Subscriber)
-A Salstack minion that connects to the saltstack master and receives events.
+A Salstack minion that connects to the saltstack master and receives events. This only prints events and does not respond.
 
 ## API
 An HTTP api that recevies a request sends them to the minion and gives the response. 
@@ -21,14 +20,16 @@ An HTTP api that recevies a request sends them to the minion and gives the respo
 api-event-listener.go : Will initialize an event listener. Needs to be ran a on salt master server.
 
 salt.go : Will run a salt command to a minion. Needs to be ran from a salt master server.
+```
+Example : salt -L minion test.ping
+```
 
 api/main.go : Will initialize a http api. Needs to be ran on a salt master server.
 
-salt-minion/salt-minion.go : Will start a subscriber that connects to a salt master server. You need to change salt master ip in the code.
-
-var SaltMasterPull = "tcp://YOURSALTMASTERIP4506"
-
-var SaltMasterPub = "tcp://YOURSALTMASTERIP:4505"
+salt-minion/salt-minion.go : Will start a subscriber that connects to a salt master server. You need to define -id and --masterip in args.
+```
+Example: go run salt-minion.go -id salt-minion-01 --masterip 192.168.1.1
+```
 
 ## Requirements
 go get github.com/pebbe/zmq4
