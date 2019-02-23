@@ -1,54 +1,107 @@
-package main
-
+package saltPackage
 import (
-        "fmt"
-        "github.com/vmihailenco/msgpack"
-        "io"
-        "log"
-        "net"
-        "strings"
+	"fmt"
+	"github.com/vmihailenco/msgpack"
+	"io"
+	"log"
+	"net"
+	"strings"
 )
 
-func reader(r io.Reader) {
-        buf := make([]byte, 1024)
-        for {
-                _, err := r.Read(buf[:])
-                if err != nil {
-                        log.Fatal("Dial error", err)
-                        return
-                }
-                var item1 map[string]interface{}
-                err = msgpack.Unmarshal(buf, &item1)
-                if err != nil {
-                        // panic(err)
-                        log.Fatal("Dial error", err)
-                }
-                result_all := fmt.Sprint(item1["body"])
-                result_list := strings.Split(result_all, "\n\n")
-                result_tag := result_list[0]
-                result_return := result_list[1]
-                byte_result := []byte(result_return)
-
-                var item map[string]interface{}
-                err = msgpack.Unmarshal(byte_result, &item)
-                if err != nil {
-                        // panic(err)
-                        log.Fatal("Dial error", err)
-                }
-                fmt.Printf("Tag is %s and ret is %s", result_tag, item)
-                fmt.Println("\n\n")
-        }
+type Server struct {
+	reqch chan request
+	msgch chan message
+	calls map[string]chan Response
+	sock  io.Reader
+	buf   []byte
 }
 
-func main() {
-        b, err := net.Dial("unix", "/var/run/salt/master/master_event_pub.ipc")
-        if err != nil {
-                log.Fatal("Dial error", err)
-        }
-        defer b.Close()
-
-        for {
-                reader(b)
-
-        }
+type request struct {
+	tag    string
+	respch chan Response
 }
+
+type Response struct {
+	Payload map[string]interface{}
+}
+
+type message struct {
+	tag     string
+	Payload map[string]interface{}
+}
+
+func (srv *Server) Call(tag string, respch chan Response) {
+	srv.reqch <- request{tag: tag, respch: respch}
+	fmt.Println("Added tag", tag)
+}
+
+func (srv *Server) Delete(tag string) {
+	delete(srv.calls, tag)
+}
+
+func (srv *Server) Loop() {
+	for {
+		select {
+		case req := <-srv.reqch:
+			srv.calls[req.tag] = req.respch
+		case msg := <-srv.msgch:
+			log.Println("Received", msg)
+			respch, ok := srv.calls[msg.tag]
+			if !ok {
+				continue
+			}
+			log.Println("Found tag", msg.tag)
+			respch <- Response{Payload: msg.Payload}
+			delete(srv.calls, msg.tag)
+		}
+	}
+}
+
+func (srv *Server) decodeEvent(buffer []byte) (tag string, event map[string]interface{}) {
+	var err error
+	var item1 map[string]interface{}
+	err = msgpack.Unmarshal(buffer, &item1)
+	if err != nil {
+		log.Println("Could not unmarshall", err)
+	}
+	result_all := fmt.Sprint(item1["body"])
+	result_list := strings.SplitN(result_all, "\n\n", 2)
+	tag = result_list[0]
+	byte_result := []byte(result_list[1])
+
+	err = msgpack.Unmarshal(byte_result, &event)
+	if err != nil {
+		log.Println("Could not unmarshall", err)
+	}
+	return tag, event
+
+}
+
+func (srv *Server) channelMessages() {
+	result_tag, event := srv.decodeEvent(srv.buf)
+	srv.msgch <- message{tag: result_tag, Payload: event}
+}
+
+func (srv *Server) ReadMessages() error {
+	for {
+		_, err := srv.sock.Read(srv.buf)
+		if err != nil {
+			log.Println("erro")
+		}
+		srv.channelMessages()
+	}
+}
+
+func NewServer() (srv *Server) {
+	ret, err := net.Dial("unix", "/var/run/salt/master/master_event_pub.ipc")
+	if err != nil {
+		log.Fatal("Could not connect to socket", err)
+	}
+	buf := make([]byte, 1002400)
+	m := make(map[string]chan Response, 10000)
+	ch0 := make(chan request, 10000)
+	ch1 := make(chan message, 10000)
+	srv = &Server{sock: ret, reqch: ch0, msgch: ch1, calls: m, buf: buf}
+	return
+}
+

@@ -1,11 +1,14 @@
-package main
+package saltClient
 
 import (
 	"fmt"
-	"github.com/tsaridas/salt-event-listener-golang/zmqapi"
+	"github.com/tsaridas/zmqapi"
 	"github.com/vmihailenco/msgpack"
 	"io/ioutil"
 	"os"
+	"strconv"
+	"strings"
+	"time"
 )
 
 func check(e error) {
@@ -14,16 +17,33 @@ func check(e error) {
 	}
 }
 
-func main() {
+type Something struct {
+	// Load   map[string]interface{}	`msgpack:"load"`
+	Load Event  `msgpack:"load"`
+	Enc  string `msgpack:"enc"`
+}
 
+type Event struct {
+	JID     string   `msgpack:"jid"`
+	Minions []string `msgpack:"minions"`
+}
+
+func GetJid() string {
+	t := time.Now().UnixNano()
+	str := strconv.FormatInt(t, 10)
+	s := []string{str, "1"}
+	newstr := strings.Join(s, "")
+	return newstr
+}
+
+func SendCommand(jid string) {
 	dat, err := ioutil.ReadFile("/var/cache/salt/master/.root_key")
 	check(err)
-
 	var tgt [1]string
 	tgt[0] = "salt-minion-01"
 	var arg [0]string
 	delimiter := map[string]interface{}{"delimiter": ":", "show_timeout": true, "show_jid": false}
-	load := map[string]interface{}{"tgt_type": "list", "jid": "", "cmd": "publish", "tgt": tgt, "key": dat, "arg": arg, "fun": "test.ping", "kwargs": delimiter, "ret": "", "user": "root"}
+	load := map[string]interface{}{"tgt_type": "list", "jid": jid, "cmd": "publish", "tgt": tgt, "key": dat, "arg": arg, "fun": "test.ping", "kwargs": delimiter, "ret": "", "user": "root"}
 	msg := map[string]interface{}{"load": load, "enc": "clear"}
 
 	b, err := msgpack.Marshal(msg)
@@ -41,12 +61,13 @@ func main() {
 
 	if len(ret) == 0 {
 		fmt.Println("Did not get a return.")
-		return
 	}
 	byte_result := []byte(ret[0])
-	var item map[string]interface{}
+	var item Something
+	// var item map[string]interface{}
 	err = msgpack.Unmarshal(byte_result, &item)
 	check(err)
-	fmt.Println(item)
-
+	//fmt.Println(item)
+	//fmt.Println(item.Load.JID)
+	//fmt.Println(item.Load.Minions)
 }
