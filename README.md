@@ -21,7 +21,7 @@ api-event-listener.go : Will initialize an event listener. Needs to be ran a on 
 
 salt.go : Will run a salt command to a minion. Needs to be ran from a salt master server.
 ```
-Example : salt -L minion test.ping
+Example : go run salt.go -L minion test.ping
 ```
 
 api/main.go : Will initialize a http api. Needs to be ran on a salt master server.
@@ -32,8 +32,13 @@ Example: go run salt-minion.go -id salt-minion-01 --masterip 192.168.1.1
 ```
 
 ## Requirements
+```
 go get github.com/pebbe/zmq4
 
 go get github.com/vmihailenco/msgpack
 
 yum install zeromq-devel -y
+```
+
+## Tested
+This was tested on a Centos7.5 and salt-2018.3.3. It should work on lower and higher versions of Saltstack.
