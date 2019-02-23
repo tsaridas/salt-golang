@@ -9,16 +9,15 @@ import (
 	"crypto/x509"
 	"encoding/base64"
 	"encoding/pem"
+	"flag"
 	"fmt"
 	zmq "github.com/pebbe/zmq4"
 	"github.com/tsaridas/salt-event-listener-golang/zmqapi"
 	"github.com/vmihailenco/msgpack"
 	"io/ioutil"
 	"log"
+	"os"
 )
-
-var SaltMasterPull = "tcp://192.168.1.1:4506"
-var SaltMasterPub = "tcp://192.168.1.1:4505"
 
 func ExampleNewCBCDecrypter(key string, text []byte) (ciphertext []byte) {
 	ciphertext = text
@@ -71,11 +70,11 @@ func check(e error) {
 	}
 }
 
-func auth() (key string) {
+func auth(minion_id string, master_ip string) (key string) {
 	dat, err := ioutil.ReadFile("/etc/salt/pki/minion/minion.pub")
 	check(err)
 
-	load := map[string]interface{}{"cmd": "_auth", "id": "salt-minion-01", "pub": dat, "token": "asdfsadf"}
+	load := map[string]interface{}{"cmd": "_auth", "id": minion_id, "pub": dat, "token": "asdfsadf"}
 
 	msg := map[string]interface{}{"load": load, "enc": "clear"}
 
@@ -83,7 +82,7 @@ func auth() (key string) {
 	check(err)
 
 	var verbose bool
-	session, _ := mdapi.NewMdcli(SaltMasterPull, verbose)
+	session, _ := mdapi.NewMdcli(master_ip, verbose)
 
 	defer session.Close()
 	s := string(b)
@@ -103,8 +102,29 @@ func auth() (key string) {
 	return key
 }
 
+func Usage() {
+	fmt.Println("Application Flags:")
+	flag.PrintDefaults()
+	os.Exit(0)
+}
+
 func main() {
-	aes_key := auth()
+	var minion_id string
+	var master_ip string
+	flag.StringVar(&minion_id, "id", "", "Salt Minion id")
+	flag.StringVar(&master_ip, "masterip", "", "Salt Master ip")
+	flag.Parse()
+	flag.Usage = Usage
+	if len(os.Args) < 4 {
+		Usage()
+	}
+
+	SaltMasterPull := fmt.Sprintf("tcp://%s:4506", master_ip)
+	SaltMasterPub := fmt.Sprintf("tcp://%s:4505", master_ip)
+	// SaltMasterPull := "tcp://", master_ip, ":4506"
+	// SaltMasterPub := "tcp://", master_ip, :4505"
+
+	aes_key := auth(minion_id, SaltMasterPull)
 	hash := sha1.New()
 	random := rand.Reader
 	priv, _ := ioutil.ReadFile("/etc/salt/pki/minion/minion.pem")

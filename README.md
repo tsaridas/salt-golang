@@ -39,6 +39,8 @@ yum install zeromq-devel -y
 ## Installation
 ```
 go get github.com/tsaridas/salt-event-listener-golang
+cd $GOPATH/src/github.com/tsaridas/salt-event-listener-golang
+go get -d ./...
 ```
 
 ## Tested

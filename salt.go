@@ -1,68 +1,25 @@
 package main
 
 import (
-	"crypto/aes"
-	"crypto/cipher"
-	"crypto/rand"
-	"crypto/rsa"
-	"crypto/sha1"
-	"crypto/x509"
-	"encoding/base64"
-	"encoding/pem"
 	"flag"
 	"fmt"
-	zmq "github.com/pebbe/zmq4"
-	"github.com/tsaridas/salt-event-listener-golang/zmqapi"
+	"github.com/tsaridas/zmqapi"
 	"github.com/vmihailenco/msgpack"
+	"io"
 	"io/ioutil"
 	"log"
+	"net"
 	"os"
+	"strconv"
+	"strings"
+	"sync"
+	"time"
+	"reflect"
 )
 
-func ExampleNewCBCDecrypter(key string, text []byte) (ciphertext []byte) {
-	ciphertext = text
-
-	block, err := aes.NewCipher([]byte(key))
-	if err != nil {
-		panic(err)
-	}
-
-	iv := ciphertext[:aes.BlockSize]
-	ciphertext = ciphertext[aes.BlockSize:]
-
-	if len(ciphertext)%aes.BlockSize != 0 {
-		panic("ciphertext is not a multiple of the block size")
-	}
-
-	mode := cipher.NewCBCDecrypter(block, iv)
-
-	mode.CryptBlocks(ciphertext, ciphertext)
-	return
-}
-
-func decodeEvent(buffer []byte, b64key string) (tag string, event map[string]interface{}) {
-	var err error
-	key, err := base64.StdEncoding.DecodeString(b64key)
-
-	var item1 map[string]string
-	err = msgpack.Unmarshal(buffer, &item1)
-	if err != nil {
-		log.Println("Could not unmarshall with", err)
-	}
-
-	encodedString := item1["load"]
-	byteArray := []byte(encodedString)
-
-	decryptedString := ExampleNewCBCDecrypter(string(key), byteArray)
-
-	byte_result := []byte(decryptedString[8:])
-	err = msgpack.Unmarshal(byte_result, &event)
-	if err != nil {
-		log.Println("Could not unmarshall", err)
-	}
-	return tag, event
-
-}
+var jidArray [1]string
+var tgt []string
+var wg sync.WaitGroup
 
 func check(e error) {
 	if e != nil {
@@ -70,20 +27,42 @@ func check(e error) {
 	}
 }
 
-func auth(minion_id string, master_ip string) (key string) {
-	dat, err := ioutil.ReadFile("/etc/salt/pki/minion/minion.pub")
+type Something struct {
+	Load Event  `msgpack:"load"`
+	Enc  string `msgpack:"enc"`
+}
+
+type Event struct {
+	JID     string   `msgpack:"jid"`
+	Minions []string `msgpack:"minions"`
+}
+
+func getJid() string {
+	t := time.Now().UnixNano()
+	str := strconv.FormatInt(t, 10)
+	s := []string{str, "1"}
+	newstr := strings.Join(s, "")
+	return newstr
+}
+
+func sendJob(jid string, wg sync.WaitGroup, module string, arg []string) {
+	dat, err := ioutil.ReadFile("/var/cache/salt/master/.root_key")
 	check(err)
 
-	load := map[string]interface{}{"cmd": "_auth", "id": minion_id, "pub": dat, "token": "asdfsadf"}
-
+	delimiter := map[string]interface{}{"delimiter": ":", "show_timeout": true, "show_jid": false}
+	load := map[string]interface{}{"tgt_type": "list", "jid": jid, "cmd": "publish", "tgt": tgt, "key": dat, "arg": arg, "fun": module, "kwargs": delimiter, "ret": "", "user": "root"}
 	msg := map[string]interface{}{"load": load, "enc": "clear"}
-
+	
 	b, err := msgpack.Marshal(msg)
 	check(err)
 
 	var verbose bool
-	session, _ := mdapi.NewMdcli(master_ip, verbose)
-
+	if len(os.Args) > 1 && os.Args[1] == "-v" {
+		verbose = true
+	}
+	session, _ := mdapi.NewMdcli("tcp://127.0.0.1:4506", verbose)
+	
+	//time.Sleep(60 * time.Second)
 	defer session.Close()
 	s := string(b)
 	ret, err := session.Send(s)
@@ -94,12 +73,98 @@ func auth(minion_id string, master_ip string) (key string) {
 		return
 	}
 	byte_result := []byte(ret[0])
-	var item map[string]interface{}
+	var item Something
+	// var item map[string]interface{}
 	err = msgpack.Unmarshal(byte_result, &item)
-	fmt.Println(item["aes"])
 	check(err)
-	key = item["aes"].(string)
-	return key
+}
+
+type EventListener struct {
+	reader     *io.Reader
+	SocketType string
+	SocketPath string
+}
+
+func (el *EventListener) Dial() (reply io.Reader) {
+	ret, err := net.Dial(el.SocketType, el.SocketPath)
+	if err != nil {
+		log.Fatal("Could not connect to socket", err)
+	}
+	reply = ret
+	return
+}
+
+func NewEventListener(st string, sp string) (el *EventListener) {
+	el = &EventListener{SocketType: st, SocketPath: sp}
+	return
+}
+
+func reader(wg sync.WaitGroup, m map[string]bool, jid string, module string, arg []string) {
+	timeout := time.After(time.Second * 5)
+	tick := time.Tick(time.Millisecond)
+	socket := "unix"
+	el := NewEventListener(socket, "/var/run/salt/master/master_event_pub.ipc")
+	b := el.Dial()
+	count := 0
+	go sendJob(jid, wg, module, arg)
+	for {
+		select {
+		case <-tick:
+			buf := make([]byte, 18192)
+			_, err := b.Read(buf)
+			if err != nil {
+				log.Println("Could not read buffer ", err)
+				continue
+			}
+			var item1 map[string]interface{}
+			err = msgpack.Unmarshal(buf, &item1)
+			if err != nil {
+				log.Println("Could not unmarshall", err)
+				continue
+			}
+			// fmt.Println(item1)
+			result_all := fmt.Sprint(item1["body"])
+			result_list := strings.SplitN(result_all, "\n\n", 2)
+			result_tag := result_list[0]
+			byte_result := []byte(result_list[1])
+			found := false
+
+			for jid := range jidArray {
+				tag := "salt/job/" + jidArray[jid] + "/ret"
+				if strings.Contains(result_tag, tag) {
+					count += 1
+					found = true
+					break
+				}
+
+			}
+			if !found {
+				continue
+			}
+
+			var item map[string]interface{}
+			err = msgpack.Unmarshal(byte_result, &item)
+			if err != nil {
+				log.Println("Could not unmarshall", err)
+				continue
+			}
+			ret := item["return"]
+			t := reflect.TypeOf(ret).Kind()
+			if t == reflect.Bool{
+				ret = "   True"
+			}
+			delete(m, item["id"].(string))
+			fmt.Printf("%s:\n%s\n", item["id"], ret)
+			if len(tgt) == count {
+				os.Exit(0)
+			}
+		case <-timeout:
+			for key, _ := range m{
+				fmt.Printf("%s:\n   false\n", key, jidArray[0])
+			}
+			os.Exit(0)
+		}
+	}
 }
 
 func Usage() {
@@ -109,57 +174,36 @@ func Usage() {
 }
 
 func main() {
-	var minion_id string
-	var master_ip string
-	flag.StringVar(&minion_id, "id", "", "Salt Minion id")
-	flag.StringVar(&master_ip, "masterip", "", "Salt Master ip")
+	m := map[string]bool{}
+	var serverList string
+	flag.StringVar(&serverList, "L", "", "Minion comma seperated list of minions.")
 	flag.Parse()
 	flag.Usage = Usage
 	if len(os.Args) < 4 {
 		Usage()
 	}
-
-	SaltMasterPull := fmt.Sprintf("tcp://%s:4506", master_ip)
-	SaltMasterPub := fmt.Sprintf("tcp://%s:4505", master_ip)
-	// SaltMasterPull := "tcp://", master_ip, ":4506"
-	// SaltMasterPub := "tcp://", master_ip, :4505"
-
-	aes_key := auth(minion_id, SaltMasterPull)
-	hash := sha1.New()
-	random := rand.Reader
-	priv, _ := ioutil.ReadFile("/etc/salt/pki/minion/minion.pem")
-	privateKeyBlock, _ := pem.Decode([]byte(priv))
-	var pri *rsa.PrivateKey
-	pri, parseErr := x509.ParsePKCS1PrivateKey(privateKeyBlock.Bytes)
-	if parseErr != nil {
-		fmt.Println("Load private key error")
-		panic(parseErr)
-	}
-	//decodedData, _ := base64.URLEncoding.DecodeString(aes_key)
-	bytes := []byte(aes_key)
-	decryptedData, decryptErr := rsa.DecryptOAEP(hash, random, pri, bytes, nil)
-	if decryptErr != nil {
-		fmt.Println("Decrypt data error")
-		panic(decryptErr)
-	}
-	b64str := string(decryptedData)
-	fmt.Println(string(b64str))
-	fmt.Println(string(decryptedData[:32]))
-	str, _ := base64.StdEncoding.DecodeString(b64str)
-	fmt.Println(string(str))
-
-	subscriber, _ := zmq.NewSocket(zmq.SUB)
-	defer subscriber.Close()
-	subscriber.Connect(SaltMasterPub)
-	subscriber.SetSubscribe("")
-
-	for {
-		contents, err := subscriber.RecvMessage(0)
-		if err != nil {
-			continue
+	module := os.Args[3]
+	args := []string{}
+	for i, v := range os.Args{
+		if i >= 4{
+			args = append(args, v)
 		}
-		r := []byte(contents[0])
-		tag, event := decodeEvent(r, string(decryptedData[:32]))
-		fmt.Printf("[%s] %s\n", tag, event)
 	}
+	tgts := strings.Split(serverList, ",")
+	for _, i := range tgts {
+		value, present := m[i]
+		if ! present {
+    			m[i] = value
+			tgt = append(tgt, i)
+		}
+			
+			
+	}
+
+	jid := getJid()
+	jidArray[0] = jid
+	reader(wg, m, jid, module, args)
+	wg.Add(1)
+	wg.Wait()
+
 }
