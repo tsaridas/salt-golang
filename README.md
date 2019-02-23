@@ -25,6 +25,9 @@ api/main.go : Will initialize a http api. Needs to be ran on a salt master serve
 
 salt-minion/salt-minion.go : Will start a subscriber that connects to a salt master server. You need to change salt master ip in the code.
 
+var SaltMasterPull = "tcp://YOURSALTMASTERIP4506"
+var SaltMasterPub = "tcp://YOURSALTMASTERIP:4505"
+
 ## Requirements
 go get github.com/pebbe/zmq4
 go get github.com/vmihailenco/msgpack

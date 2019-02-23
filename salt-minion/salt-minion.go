@@ -1,22 +1,24 @@
 package main
 
 import (
-	zmq "github.com/pebbe/zmq4"
-	"github.com/vmihailenco/msgpack"
-	"github.com/tsaridas/zmqapi"
-	"fmt"
-	"log"
-	"crypto/rsa"
-	"crypto/x509"
-	"crypto/sha1"
-	"crypto/rand"
 	"crypto/aes"
 	"crypto/cipher"
+	"crypto/rand"
+	"crypto/rsa"
+	"crypto/sha1"
+	"crypto/x509"
 	"encoding/base64"
-	"io/ioutil"
 	"encoding/pem"
+	"fmt"
+	zmq "github.com/pebbe/zmq4"
+	"github.com/tsaridas/salt-event-listener-golang/zmqapi"
+	"github.com/vmihailenco/msgpack"
+	"io/ioutil"
+	"log"
 )
 
+var SaltMasterPull = "tcp://192.168.1.1:4506"
+var SaltMasterPub = "tcp://192.168.1.1:4505"
 
 func ExampleNewCBCDecrypter(key string, text []byte) (ciphertext []byte) {
 	ciphertext = text
@@ -39,67 +41,64 @@ func ExampleNewCBCDecrypter(key string, text []byte) (ciphertext []byte) {
 	return
 }
 
-
 func decodeEvent(buffer []byte, b64key string) (tag string, event map[string]interface{}) {
-        var err error
+	var err error
 	key, err := base64.StdEncoding.DecodeString(b64key)
 
-        var item1 map[string]string
-        err = msgpack.Unmarshal(buffer, &item1)
-        if err != nil {
-                log.Println("Could not unmarshall with", err)
-        }
+	var item1 map[string]string
+	err = msgpack.Unmarshal(buffer, &item1)
+	if err != nil {
+		log.Println("Could not unmarshall with", err)
+	}
 
-
-        encodedString := item1["load"]
+	encodedString := item1["load"]
 	byteArray := []byte(encodedString)
 
- 	decryptedString := ExampleNewCBCDecrypter(string(key), byteArray)
+	decryptedString := ExampleNewCBCDecrypter(string(key), byteArray)
 
-
-        byte_result := []byte(decryptedString[8:])
-        err = msgpack.Unmarshal(byte_result, &event)
-        if err != nil {
-                log.Println("Could not unmarshall", err)
-        }
-        return tag, event
+	byte_result := []byte(decryptedString[8:])
+	err = msgpack.Unmarshal(byte_result, &event)
+	if err != nil {
+		log.Println("Could not unmarshall", err)
+	}
+	return tag, event
 
 }
 
 func check(e error) {
-        if e != nil {
-                panic(e)
-        }
+	if e != nil {
+		panic(e)
+	}
 }
 
-func auth() (key string){
-        dat, err := ioutil.ReadFile("/etc/salt/pki/minion/minion.pub")
-        check(err)
+func auth() (key string) {
+	dat, err := ioutil.ReadFile("/etc/salt/pki/minion/minion.pub")
+	check(err)
 
 	load := map[string]interface{}{"cmd": "_auth", "id": "salt-minion-01", "pub": dat, "token": "asdfsadf"}
 
-        msg := map[string]interface{}{"load": load, "enc": "clear"}
+	msg := map[string]interface{}{"load": load, "enc": "clear"}
 
-        b, err := msgpack.Marshal(msg)
-        check(err)
+	b, err := msgpack.Marshal(msg)
+	check(err)
 
-        var verbose bool
-        session, _ := mdapi.NewMdcli("tcp://192.168.69.40:4506", verbose)
+	var verbose bool
+	session, _ := mdapi.NewMdcli(SaltMasterPull, verbose)
 
-        defer session.Close()
-        s := string(b)
-        ret, err := session.Send(s)
-        check(err)
+	defer session.Close()
+	s := string(b)
+	ret, err := session.Send(s)
+	check(err)
 
-        if len(ret) == 0 {
-                fmt.Println("Did not get a return.")
-                return
-        }
-        byte_result := []byte(ret[0])
-        var item map[string]interface{}
-        err = msgpack.Unmarshal(byte_result, &item)
- 	fmt.Println(item["aes"])
-        check(err)
+	if len(ret) == 0 {
+		fmt.Println("Did not get a return.")
+		return
+	}
+	byte_result := []byte(ret[0])
+	var item map[string]interface{}
+	err = msgpack.Unmarshal(byte_result, &item)
+	fmt.Println(item["aes"])
+	check(err)
 	key = item["aes"].(string)
 	return key
 }
@@ -131,7 +130,7 @@ func main() {
 
 	subscriber, _ := zmq.NewSocket(zmq.SUB)
 	defer subscriber.Close()
-	subscriber.Connect("tcp://192.168.69.40:4505")
+	subscriber.Connect(SaltMasterPub)
 	subscriber.SetSubscribe("")
 
 	for {
