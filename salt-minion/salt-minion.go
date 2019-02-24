@@ -17,6 +17,7 @@ import (
 	"flag"
 	"fmt"
 	zmq "github.com/pebbe/zmq4"
+	"github.com/ryanuber/go-glob"
 	"github.com/tsaridas/salt-event-listener-golang/zmqapi"
 	"github.com/vmihailenco/msgpack"
 	"io/ioutil"
@@ -79,18 +80,7 @@ func ExampleNewCBCEncrypter(key string, text []byte) (ciphertext []byte){
 	return
 }
 
-
-type IncomingEvent struct {
-        Arg  		[]string 	`msgpack:"arg"`
-	User		string		`msgpack:"user"`
-        Jid  		string		`msgpack:"jid"`
-        Fun  		string		`msgpack:"fun"`
-        Tgt_type  	string		`msgpack:"tgt_type"`
-	Tgt		[]string	`msgpack:"tgt"`
-	Ret		string		`msgpack:"ret"`
-}
-
-func decodeEvent(buffer []byte, b64key string) (event IncomingEvent) {
+func decodeEvent(buffer []byte, b64key string) (tag string, event map[string]interface{}) {
 	key, err := base64.StdEncoding.DecodeString(b64key)
 
 
@@ -98,8 +88,9 @@ func decodeEvent(buffer []byte, b64key string) (event IncomingEvent) {
 	var item1 map[string]string
 	err = msgpack.Unmarshal(buffer, &item1)
 	if err != nil {
-		log.Println("Could not unmarshall initial load with", err)
+		log.Println("Could not unmarshall with", err)
 	}
+	//fmt.Println("Got Incoming event %s\n", item1)
 
 	encodedString := item1["load"]
 	byteArray := []byte(encodedString)
@@ -108,15 +99,17 @@ func decodeEvent(buffer []byte, b64key string) (event IncomingEvent) {
 
 
 
-	// Remove pickle::
+
 	byte_result := []byte(decryptedString[8:])
 
 
-        err = msgpack.Unmarshal(byte_result, &event)
-        if err != nil {
-                log.Println("Could not unmarshall with IncomingEvent", err)
-        }
-	return event
+
+
+	err = msgpack.Unmarshal(byte_result, &event)
+	if err != nil {
+		log.Println("Could not unmarshall", err)
+	}
+	return tag, event
 
 }
 
@@ -254,17 +247,29 @@ func main() {
 			continue
 		}
 		r := []byte(contents[0])
-
-		event := decodeEvent(r, string(decryptedData[:32]))
-		fmt.Printf("Got event : %s \n", event)
-
-
-		for _, element := range event.Tgt {
-			if element == minion_id {
-				reply(minion_id, SaltMasterPull, event.Jid, event.Fun, string(decryptedData[:32]), string(decryptedData[32:]))
-				fmt.Printf("Replied to event : %s\n", event)
-				break
-			}
+		_, event := decodeEvent(r, string(decryptedData[:32]))
+		fmt.Printf("Got function : %s with jid %s \n", event["fun"], event)
+		jid := event["jid"].(string)
+		fun := event["fun"].(string)
+		if event["fun"] != "test.ping" {
+			continue
+		}
+		switch event["tgt_type"].(string) {
+			case "glob":
+				if glob.Glob(event["tgt"].(string), minion_id) {
+					reply(minion_id, SaltMasterPull, jid, fun, string(decryptedData[:32]), string(decryptedData[32:]))
+					fmt.Printf("Replied to event : %s\n", event)
+				}
+			case "list":
+				tgt := event["tgt"].([]interface{})
+				for _, element := range tgt {
+					if element == minion_id {
+						reply(minion_id, SaltMasterPull, jid, fun, string(decryptedData[:32]), string(decryptedData[32:]))
+						fmt.Printf("Replied to event : %s\n", event)
+						break
+					}
+				}
+			default:
 		}
 	}
 }
