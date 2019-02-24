@@ -1,16 +1,13 @@
 package main
 
 import (
-	"time"
-	"crypto/hmac"
-	"crypto/sha256"
-	"strings"
-	"io"
 	"crypto/aes"
 	"crypto/cipher"
+	"crypto/hmac"
 	"crypto/rand"
 	"crypto/rsa"
 	"crypto/sha1"
+	"crypto/sha256"
 	"crypto/x509"
 	"encoding/base64"
 	"encoding/pem"
@@ -20,11 +17,13 @@ import (
 	"github.com/ryanuber/go-glob"
 	"github.com/tsaridas/salt-event-listener-golang/zmqapi"
 	"github.com/vmihailenco/msgpack"
+	"io"
 	"io/ioutil"
 	"log"
 	"os"
+	"strings"
+	"time"
 )
-
 
 func ExampleNewCBCDecrypter(key string, text []byte) (ciphertext []byte) {
 	//fmt.Printf("Key in Decrypter is : %s\n", key)
@@ -48,7 +47,7 @@ func ExampleNewCBCDecrypter(key string, text []byte) (ciphertext []byte) {
 	return
 }
 
-func ExampleNewCBCEncrypter(key string, text []byte) (ciphertext []byte){
+func ExampleNewCBCEncrypter(key string, text []byte) (ciphertext []byte) {
 	s := string(text)
 	s = "pickle::" + s
 	// fmt.Printf("new string is %s\n", s)
@@ -83,8 +82,6 @@ func ExampleNewCBCEncrypter(key string, text []byte) (ciphertext []byte){
 func decodeEvent(buffer []byte, b64key string) (tag string, event map[string]interface{}) {
 	key, err := base64.StdEncoding.DecodeString(b64key)
 
-
-
 	var item1 map[string]string
 	err = msgpack.Unmarshal(buffer, &item1)
 	if err != nil {
@@ -97,13 +94,7 @@ func decodeEvent(buffer []byte, b64key string) (tag string, event map[string]int
 
 	decryptedString := ExampleNewCBCDecrypter(string(key), byteArray)
 
-
-
-
 	byte_result := []byte(decryptedString[8:])
-
-
-
 
 	err = msgpack.Unmarshal(byte_result, &event)
 	if err != nil {
@@ -157,7 +148,7 @@ func reply(minion_id string, master_ip string, jid string, fun string, b64key st
 	key_, err := base64.StdEncoding.DecodeString(b64key)
 	hmac_k, err := base64.StdEncoding.DecodeString(hmac_key)
 
-	load := map[string]interface{}{"retcode": 0, "success": true, "cmd": "_return", "_stamp":"2019-02-24T07:21:16.549817", "fun": fun, "id": minion_id, "jid": jid, "return": true}
+	load := map[string]interface{}{"retcode": 0, "success": true, "cmd": "_return", "_stamp": "2019-02-24T07:21:16.549817", "fun": fun, "id": minion_id, "jid": jid, "return": true}
 
 	b, err := msgpack.Marshal(load)
 	//fmt.Println("Marshalled data are :", string(b))
@@ -172,7 +163,7 @@ func reply(minion_id string, master_ip string, jid string, fun string, b64key st
 
 	msg := map[string]interface{}{"load": []byte(cs), "enc": "aes"}
 
-        b, err = msgpack.Marshal(msg)
+	b, err = msgpack.Marshal(msg)
 	check(err)
 	//fmt.Println("Marshalled data are :", string(b))
 
@@ -210,7 +201,7 @@ func main() {
 	SaltMasterPub := fmt.Sprintf("tcp://%s:4505", master_ip)
 
 	aes_key := auth(minion_id, SaltMasterPull)
-	for len(aes_key) == 0{
+	for len(aes_key) == 0 {
 		fmt.Println("Could not authenticate with Master. Please check that minion id is accepted. Retring in 10 seconds.")
 		time.Sleep(10 * time.Second)
 		aes_key = auth(minion_id, SaltMasterPull)
@@ -255,21 +246,21 @@ func main() {
 			continue
 		}
 		switch event["tgt_type"].(string) {
-			case "glob":
-				if glob.Glob(event["tgt"].(string), minion_id) {
+		case "glob":
+			if glob.Glob(event["tgt"].(string), minion_id) {
+				reply(minion_id, SaltMasterPull, jid, fun, string(decryptedData[:32]), string(decryptedData[32:]))
+				fmt.Printf("Replied to event : %s\n", event)
+			}
+		case "list":
+			tgt := event["tgt"].([]interface{})
+			for _, element := range tgt {
+				if element == minion_id {
 					reply(minion_id, SaltMasterPull, jid, fun, string(decryptedData[:32]), string(decryptedData[32:]))
 					fmt.Printf("Replied to event : %s\n", event)
+					break
 				}
-			case "list":
-				tgt := event["tgt"].([]interface{})
-				for _, element := range tgt {
-					if element == minion_id {
-						reply(minion_id, SaltMasterPull, jid, fun, string(decryptedData[:32]), string(decryptedData[32:]))
-						fmt.Printf("Replied to event : %s\n", event)
-						break
-					}
-				}
-			default:
+			}
+		default:
 		}
 	}
 }

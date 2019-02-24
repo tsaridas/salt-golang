@@ -17,6 +17,17 @@ func check(e error) {
 	}
 }
 
+type Something struct {
+	// Load   map[string]interface{}        `msgpack:"load"`
+	Load Event  `msgpack:"load"`
+	Enc  string `msgpack:"enc"`
+}
+
+type Event struct {
+	JID     string   `msgpack:"jid"`
+	Minions []string `msgpack:"minions"`
+}
+
 func GetJid() string {
 	t := time.Now().UnixNano()
 	str := strconv.FormatInt(t, 10)
