@@ -7,11 +7,11 @@ This is me trying to learn some golang and had the idea to write a salt client t
 A Saltstack client to sent commands from the master directly to the zmq port 4506 written in go.
 
 
-## Event Listener (listener)
+## Event Listener 
 A Saltstack event listener listening for event from the unix socket.
 
-## Salt-minion (Subscriber)
-A Salstack minion that connects to the saltstack master and receives events. This only prints events and does not respond.
+## Salt-minion
+A Salstack minion that connects to the saltstack master and receives events. Responds only to target type list and should be used with module test.ping.
 
 ## API
 An HTTP api that recevies a request sends them to the minion and gives the response. 

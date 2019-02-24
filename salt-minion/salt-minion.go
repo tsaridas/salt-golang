@@ -1,6 +1,11 @@
 package main
 
 import (
+	"time"
+	"crypto/hmac"
+	"crypto/sha256"
+	"strings"
+	"io"
 	"crypto/aes"
 	"crypto/cipher"
 	"crypto/rand"
@@ -19,7 +24,9 @@ import (
 	"os"
 )
 
+
 func ExampleNewCBCDecrypter(key string, text []byte) (ciphertext []byte) {
+	//fmt.Printf("Key in Decrypter is : %s\n", key)
 	ciphertext = text
 
 	block, err := aes.NewCipher([]byte(key))
@@ -40,14 +47,58 @@ func ExampleNewCBCDecrypter(key string, text []byte) (ciphertext []byte) {
 	return
 }
 
-func decodeEvent(buffer []byte, b64key string) (tag string, event map[string]interface{}) {
-	var err error
+func ExampleNewCBCEncrypter(key string, text []byte) (ciphertext []byte){
+	s := string(text)
+	s = "pickle::" + s
+	// fmt.Printf("new string is %s\n", s)
+	pad := aes.BlockSize - len(s)%aes.BlockSize
+	//fmt.Printf("Pad is %s\n", pad)
+	upad := string(pad)
+	s2 := s + strings.Repeat(upad, pad)
+	// fmt.Printf("Pad is %s\n", s2)
+	plaintext := []byte(s2)
+
+	if len(plaintext)%aes.BlockSize != 0 {
+		panic("plaintext is not a multiple of the block size")
+	}
+
+	block, err := aes.NewCipher([]byte(key))
+	if err != nil {
+		panic(err)
+	}
+
+	ciphertext = make([]byte, aes.BlockSize+len(plaintext))
+	iv := ciphertext[:aes.BlockSize]
+	if _, err := io.ReadFull(rand.Reader, iv); err != nil {
+		panic(err)
+	}
+
+	mode := cipher.NewCBCEncrypter(block, iv)
+	mode.CryptBlocks(ciphertext[aes.BlockSize:], plaintext)
+
+	return
+}
+
+
+type IncomingEvent struct {
+        Arg  		[]string 	`msgpack:"arg"`
+	User		string		`msgpack:"user"`
+        Jid  		string		`msgpack:"jid"`
+        Fun  		string		`msgpack:"fun"`
+        Tgt_type  	string		`msgpack:"tgt_type"`
+	Tgt		[]string	`msgpack:"tgt"`
+	Ret		string		`msgpack:"ret"`
+}
+
+func decodeEvent(buffer []byte, b64key string) (event IncomingEvent) {
 	key, err := base64.StdEncoding.DecodeString(b64key)
+
+
 
 	var item1 map[string]string
 	err = msgpack.Unmarshal(buffer, &item1)
 	if err != nil {
-		log.Println("Could not unmarshall with", err)
+		log.Println("Could not unmarshall initial load with", err)
 	}
 
 	encodedString := item1["load"]
@@ -55,12 +106,17 @@ func decodeEvent(buffer []byte, b64key string) (tag string, event map[string]int
 
 	decryptedString := ExampleNewCBCDecrypter(string(key), byteArray)
 
+
+
+	// Remove pickle::
 	byte_result := []byte(decryptedString[8:])
-	err = msgpack.Unmarshal(byte_result, &event)
-	if err != nil {
-		log.Println("Could not unmarshall", err)
-	}
-	return tag, event
+
+
+        err = msgpack.Unmarshal(byte_result, &event)
+        if err != nil {
+                log.Println("Could not unmarshall with IncomingEvent", err)
+        }
+	return event
 
 }
 
@@ -96,10 +152,48 @@ func auth(minion_id string, master_ip string) (key string) {
 	byte_result := []byte(ret[0])
 	var item map[string]interface{}
 	err = msgpack.Unmarshal(byte_result, &item)
-	fmt.Println(item["aes"])
+	//fmt.Println(item["aes"])
 	check(err)
+	if item["aes"] == nil {
+		return ""
+	}
 	key = item["aes"].(string)
 	return key
+}
+func reply(minion_id string, master_ip string, jid string, fun string, b64key string, hmac_key string) {
+	key_, err := base64.StdEncoding.DecodeString(b64key)
+	hmac_k, err := base64.StdEncoding.DecodeString(hmac_key)
+
+	load := map[string]interface{}{"retcode": 0, "success": true, "cmd": "_return", "_stamp":"2019-02-24T07:21:16.549817", "fun": fun, "id": minion_id, "jid": jid, "return": true}
+
+	b, err := msgpack.Marshal(load)
+	//fmt.Println("Marshalled data are :", string(b))
+	check(err)
+
+	ciphertext := ExampleNewCBCEncrypter(string(key_), b)
+	hash := hmac.New(sha256.New, hmac_k)
+	hash.Write(ciphertext)
+	cs := string(ciphertext)
+	//fmt.Println("Cipher text is :", cs)
+	cs = cs + string(hash.Sum(nil))
+
+	msg := map[string]interface{}{"load": []byte(cs), "enc": "aes"}
+
+        b, err = msgpack.Marshal(msg)
+	check(err)
+	//fmt.Println("Marshalled data are :", string(b))
+
+	var verbose bool
+	session, _ := mdapi.NewMdcli(master_ip, verbose)
+
+	defer session.Close()
+	s := string(b)
+	ret, err := session.Send(s)
+	check(err)
+	if len(ret) == 0 {
+		fmt.Println("Did not get a return.")
+	}
+	return
 }
 
 func Usage() {
@@ -121,10 +215,14 @@ func main() {
 
 	SaltMasterPull := fmt.Sprintf("tcp://%s:4506", master_ip)
 	SaltMasterPub := fmt.Sprintf("tcp://%s:4505", master_ip)
-	// SaltMasterPull := "tcp://", master_ip, ":4506"
-	// SaltMasterPub := "tcp://", master_ip, :4505"
 
 	aes_key := auth(minion_id, SaltMasterPull)
+	for len(aes_key) == 0{
+		fmt.Println("Could not authenticate with Master. Please check that minion id is accepted. Retring in 10 seconds.")
+		time.Sleep(10 * time.Second)
+		aes_key = auth(minion_id, SaltMasterPull)
+	}
+	fmt.Println("Authenticated with Master.")
 	hash := sha1.New()
 	random := rand.Reader
 	priv, _ := ioutil.ReadFile("/etc/salt/pki/minion/minion.pem")
@@ -135,23 +233,20 @@ func main() {
 		fmt.Println("Load private key error")
 		panic(parseErr)
 	}
-	//decodedData, _ := base64.URLEncoding.DecodeString(aes_key)
+
 	bytes := []byte(aes_key)
 	decryptedData, decryptErr := rsa.DecryptOAEP(hash, random, pri, bytes, nil)
 	if decryptErr != nil {
 		fmt.Println("Decrypt data error")
 		panic(decryptErr)
 	}
-	b64str := string(decryptedData)
-	fmt.Println(string(b64str))
-	fmt.Println(string(decryptedData[:32]))
-	str, _ := base64.StdEncoding.DecodeString(b64str)
-	fmt.Println(string(str))
+	//fmt.Println(string(decryptedData[:32]))
 
 	subscriber, _ := zmq.NewSocket(zmq.SUB)
 	defer subscriber.Close()
 	subscriber.Connect(SaltMasterPub)
 	subscriber.SetSubscribe("")
+	fmt.Println("Subscribed to Master.")
 
 	for {
 		contents, err := subscriber.RecvMessage(0)
@@ -159,7 +254,17 @@ func main() {
 			continue
 		}
 		r := []byte(contents[0])
-		tag, event := decodeEvent(r, string(decryptedData[:32]))
-		fmt.Printf("[%s] %s\n", tag, event)
+
+		event := decodeEvent(r, string(decryptedData[:32]))
+		fmt.Printf("Got event : %s \n", event)
+
+
+		for _, element := range event.Tgt {
+			if element == minion_id {
+				reply(minion_id, SaltMasterPull, event.Jid, event.Fun, string(decryptedData[:32]), string(decryptedData[32:]))
+				fmt.Printf("Replied to event : %s\n", event)
+				break
+			}
+		}
 	}
 }
