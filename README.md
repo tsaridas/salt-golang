@@ -26,7 +26,7 @@ curl -Lv 127.0.0.1:8080/minion-id
 ```
 
 #### Salt-minion
-A Salstack minion that connects to the saltstack master and receives events. You need to use target type list in order to target the minion and make sure the normal salt-minion is installed and has the keys generated. 
+A Salstack minion that connects to the saltstack master and receives events. You need to use target type list or glob in order to target the minion and make sure the normal salt-minion is installed and has the keys generated. 
 salt-minion/salt-minion.go : Will start a subscriber that connects to a salt master server. You need to define -id and --masterip in args.
 ```
 Example: go run salt-minion.go -id salt-minion-01 --masterip 192.168.1.1
