@@ -46,3 +46,23 @@ go get -d ./...
 
 ## Tested
 This was tested on a Centos7.5 and salt-2018.3.3. It should work on lower and higher versions of Saltstack.
+
+## Performance
+```
+# With the go client
+[root@salt-master salt-event-listener-golang]# time ./salt -L salt-minion-01 test.ping
+salt-minion-01:
+   True
+
+real	0m0.030s
+user	0m0.004s
+sys	0m0.005s
+# With the python client
+[root@salt-master salt-event-listener-golang]# time salt -L salt-minion-01 test.ping
+salt-minion-01:
+    True
+
+real	0m0.909s
+user	0m0.544s
+sys	0m0.184s
+```
