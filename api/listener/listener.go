@@ -1,5 +1,6 @@
 package saltPackage
 import (
+	"regexp"
 	"fmt"
 	"github.com/vmihailenco/msgpack"
 	"io"
@@ -45,7 +46,6 @@ func (srv *Server) Loop() {
 		case req := <-srv.reqch:
 			srv.calls[req.tag] = req.respch
 		case msg := <-srv.msgch:
-			log.Println("Received", msg)
 			respch, ok := srv.calls[msg.tag]
 			if !ok {
 				continue
@@ -62,7 +62,7 @@ func (srv *Server) decodeEvent(buffer []byte) (tag string, event map[string]inte
 	var item1 map[string]interface{}
 	err = msgpack.Unmarshal(buffer, &item1)
 	if err != nil {
-		log.Println("Could not unmarshall", err)
+		log.Println("Could not unmarshall the first time.", err)
 	}
 	result_all := fmt.Sprint(item1["body"])
 	result_list := strings.SplitN(result_all, "\n\n", 2)
@@ -71,7 +71,7 @@ func (srv *Server) decodeEvent(buffer []byte) (tag string, event map[string]inte
 
 	err = msgpack.Unmarshal(byte_result, &event)
 	if err != nil {
-		log.Println("Could not unmarshall", err)
+		log.Println("Could not unmarshall the second time.", err)
 	}
 	return tag, event
 
@@ -79,14 +79,17 @@ func (srv *Server) decodeEvent(buffer []byte) (tag string, event map[string]inte
 
 func (srv *Server) channelMessages() {
 	result_tag, event := srv.decodeEvent(srv.buf)
-	srv.msgch <- message{tag: result_tag, Payload: event}
+	match, _ := regexp.MatchString("salt/job/.*/ret", result_tag)
+	if match {
+		srv.msgch <- message{tag: result_tag, Payload: event}
+	}
 }
 
 func (srv *Server) ReadMessages() error {
 	for {
 		_, err := srv.sock.Read(srv.buf)
 		if err != nil {
-			log.Println("erro")
+			log.Println("Got error from Read", err)
 		}
 		srv.channelMessages()
 	}
