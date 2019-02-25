@@ -79,7 +79,7 @@ func (srv *Server) decodeEvent(buffer []byte) (tag string, event map[string]inte
 
 func (srv *Server) channelMessages() {
 	result_tag, event := srv.decodeEvent(srv.buf)
-	match, _ := regexp.MatchString("salt/job/.*/ret", result_tag)
+	match, _ := regexp.MatchString("salt/job/[0-9]{20}/ret/.*", result_tag)
 	if match {
 		srv.msgch <- message{tag: result_tag, Payload: event}
 	}
