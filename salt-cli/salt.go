@@ -12,14 +12,12 @@ import (
 	"os"
 	"strconv"
 	"strings"
-	"sync"
 	"time"
 	"reflect"
 )
 
 var jidArray [1]string
 var tgt []string
-var wg sync.WaitGroup
 
 func check(e error) {
 	if e != nil {
@@ -45,14 +43,14 @@ func getJid() string {
 	return newstr
 }
 
-func sendJob(jid string, wg sync.WaitGroup, module string, arg []string) {
+func sendJob(jid string, module string, arg []string) {
 	dat, err := ioutil.ReadFile("/var/cache/salt/master/.root_key")
 	check(err)
 
 	delimiter := map[string]interface{}{"delimiter": ":", "show_timeout": true, "show_jid": false}
 	load := map[string]interface{}{"tgt_type": "list", "jid": jid, "cmd": "publish", "tgt": tgt, "key": dat, "arg": arg, "fun": module, "kwargs": delimiter, "ret": "", "user": "root"}
 	msg := map[string]interface{}{"load": load, "enc": "clear"}
-	
+
 	b, err := msgpack.Marshal(msg)
 	check(err)
 
@@ -61,8 +59,7 @@ func sendJob(jid string, wg sync.WaitGroup, module string, arg []string) {
 		verbose = true
 	}
 	session, _ := mdapi.NewMdcli("tcp://127.0.0.1:4506", verbose)
-	
-	//time.Sleep(60 * time.Second)
+
 	defer session.Close()
 	s := string(b)
 	ret, err := session.Send(s)
@@ -74,7 +71,6 @@ func sendJob(jid string, wg sync.WaitGroup, module string, arg []string) {
 	}
 	byte_result := []byte(ret[0])
 	var item Something
-	// var item map[string]interface{}
 	err = msgpack.Unmarshal(byte_result, &item)
 	check(err)
 }
@@ -99,14 +95,14 @@ func NewEventListener(st string, sp string) (el *EventListener) {
 	return
 }
 
-func reader(wg sync.WaitGroup, m map[string]bool, jid string, module string, arg []string) {
-	timeout := time.After(time.Second * 5)
+func reader(m map[string]bool, jid string, module string, arg []string) {
+	timeout := time.After(time.Second * 50)
 	tick := time.Tick(time.Millisecond)
 	socket := "unix"
 	el := NewEventListener(socket, "/var/run/salt/master/master_event_pub.ipc")
 	b := el.Dial()
 	count := 0
-	go sendJob(jid, wg, module, arg)
+	go sendJob(jid, module, arg)
 	for {
 		select {
 		case <-tick:
@@ -122,7 +118,6 @@ func reader(wg sync.WaitGroup, m map[string]bool, jid string, module string, arg
 				log.Println("Could not unmarshall", err)
 				continue
 			}
-			// fmt.Println(item1)
 			result_all := fmt.Sprint(item1["body"])
 			result_list := strings.SplitN(result_all, "\n\n", 2)
 			result_tag := result_list[0]
@@ -160,9 +155,9 @@ func reader(wg sync.WaitGroup, m map[string]bool, jid string, module string, arg
 			}
 		case <-timeout:
 			for key, _ := range m{
-				fmt.Printf("%s:\n   false\n", key, jidArray[0])
+				fmt.Printf("%s:\n   false\n", key)
 			}
-			os.Exit(0)
+			os.Exit(1)
 		}
 	}
 }
@@ -196,14 +191,11 @@ func main() {
     			m[i] = value
 			tgt = append(tgt, i)
 		}
-			
-			
+
+
 	}
 
 	jid := getJid()
 	jidArray[0] = jid
-	reader(wg, m, jid, module, args)
-	wg.Add(1)
-	wg.Wait()
-
+	reader(m, jid, module, args)
 }
