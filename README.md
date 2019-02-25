@@ -12,7 +12,7 @@ go run eventlistener/event-listener.go
 
 #### Client
 A Saltstack client to sent commands from the master directly to the zmq port 4506 written in go.
-salt.go : Will run a salt module to a minion. Needs to be ran from a salt master server.
+salt-cli/salt.go : Will run a salt module to a minion. Needs to be ran from a salt master server.
 ```
 Example : go run salt.go -L minion test.ping
 ```
