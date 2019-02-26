@@ -46,7 +46,6 @@ salt-minion-01:
 anaconda-ks.cfg
 original-ks.cfg
 ```
-```
 
 #### API
 An HTTP api that recevies a request sends them to the minion and gives the response. Will initialize a http api and ping the minion-id that you define. If minion does not return it will timeout and return the JID. Needs to be ran on a Salt Master server. The API will wait 5 seconds to receive results and it will return false.
