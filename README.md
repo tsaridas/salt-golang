@@ -17,6 +17,13 @@ salt-cli/salt.go : Will run a salt module to a minion. Needs to be ran from a sa
 Example : go run salt.go -L minion test.ping
 ```
 
+#### Client-v2
+A new version of Saltstack client to sent commands from the master directly to the zmq port 4506 written in go.
+salt-cli/salt.go : Will run a salt module to a minion. Needs to be ran from a salt master server.
+```
+Example : go run salt.go -L minion test.ping
+```
+
 #### API
 An HTTP api that recevies a request sends them to the minion and gives the response. Will initialize a http api and ping the minion-id that you define. If minion does not return it will timeout and return the JID. Needs to be ran on a Salt Master server.
 api/salt-api.go : 
