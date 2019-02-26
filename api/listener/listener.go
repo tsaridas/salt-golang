@@ -1,11 +1,12 @@
 package saltPackage
+
 import (
-	"regexp"
 	"fmt"
 	"github.com/vmihailenco/msgpack"
 	"io"
 	"log"
 	"net"
+	"regexp"
 	"strings"
 )
 
@@ -33,7 +34,7 @@ type message struct {
 
 func (srv *Server) Call(tag string, respch chan Response) {
 	srv.reqch <- request{tag: tag, respch: respch}
-	fmt.Println("Added tag", tag)
+	log.Println("Added tag", tag)
 }
 
 func (srv *Server) Delete(tag string) {
@@ -57,41 +58,24 @@ func (srv *Server) Loop() {
 	}
 }
 
-func (srv *Server) decodeEvent(buffer []byte) (tag string, event map[string]interface{}) {
-	var err error
-	var item1 map[string]interface{}
-	err = msgpack.Unmarshal(buffer, &item1)
-	if err != nil {
-		log.Println("Could not unmarshall the first time.", err)
-	}
-	result_all := fmt.Sprint(item1["body"])
-	result_list := strings.SplitN(result_all, "\n\n", 2)
-	tag = result_list[0]
-	byte_result := []byte(result_list[1])
-
-	err = msgpack.Unmarshal(byte_result, &event)
-	if err != nil {
-		log.Println("Could not unmarshall the second time.", err)
-	}
-	return tag, event
-
-}
-
-func (srv *Server) channelMessages() {
-	result_tag, event := srv.decodeEvent(srv.buf)
-	match, _ := regexp.MatchString("salt/job/[0-9]{20}/ret/.*", result_tag)
-	if match {
-		srv.msgch <- message{tag: result_tag, Payload: event}
-	}
-}
-
 func (srv *Server) ReadMessages() error {
+	dec := msgpack.NewDecoder(srv.sock)
 	for {
-		_, err := srv.sock.Read(srv.buf)
-		if err != nil {
-			log.Println("Got error from Read", err)
+		var m1 map[string]interface{}
+		dec.Decode(&m1)
+		m1_1 := m1["body"].(string)
+		match, _ := regexp.MatchString("salt/job/[0-9]{20}/ret/.*", m1_1)
+		if match {
+
+			var m2 map[string]interface{}
+			result_all := fmt.Sprint(m1_1)
+			result_list := strings.SplitN(result_all, "\n\n", 2)
+			tag := result_list[0]
+			byte_result := []byte(result_list[1])
+			_ = msgpack.Unmarshal(byte_result, &m2)
+			srv.msgch <- message{tag: tag, Payload: m2}
+
 		}
-		srv.channelMessages()
 	}
 }
 
@@ -100,11 +84,10 @@ func NewServer() (srv *Server) {
 	if err != nil {
 		log.Fatal("Could not connect to socket", err)
 	}
-	buf := make([]byte, 1002400)
+	buf := make([]byte, 102400)
 	m := make(map[string]chan Response, 10000)
 	ch0 := make(chan request, 10000)
 	ch1 := make(chan message, 10000)
 	srv = &Server{sock: ret, reqch: ch0, msgch: ch1, calls: m, buf: buf}
 	return
 }
-
