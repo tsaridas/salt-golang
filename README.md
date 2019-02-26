@@ -40,7 +40,7 @@ As you can see the results are not formated the same way that the normal salt cl
 #### Client-v2
 A new version of Saltstack client which uses the libraries for client and listener to sent commands from the master directly to the zmq port 4506 and listen to the event bus from the unix socket written in go. Will run a salt module to a minion. Needs to be ran from a salt master server.
 
-salt-cli/salt.go: 
+salt-cli-v2/salt.go: 
 ```
 [root@salt-master salt-event-listener-golang]# go run salt-cli-v2/salt.go -L minion test.ping
 salt-minion-01:
