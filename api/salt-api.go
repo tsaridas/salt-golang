@@ -17,6 +17,7 @@ func GetPersonWithServer(s *listener.Server) httprouter.Handle {
 		ch2 := make(chan listener.Response, 1000)
 		s.Call(tag, ch2)
 		timeout := time.After(5 * time.Second)
+		log.Println("Sending command to :", ps.ByName("minion-id"))
 		client.SendCommand(jid)
 		select {
 		case ret := <-ch2:

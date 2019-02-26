@@ -34,7 +34,6 @@ type message struct {
 
 func (srv *Server) Call(tag string, respch chan Response) {
 	srv.reqch <- request{tag: tag, respch: respch}
-	log.Println("Added tag", tag)
 }
 
 func (srv *Server) Delete(tag string) {
@@ -51,7 +50,6 @@ func (srv *Server) Loop() {
 			if !ok {
 				continue
 			}
-			log.Println("Found tag", msg.tag)
 			respch <- Response{Payload: msg.Payload}
 			delete(srv.calls, msg.tag)
 		}
