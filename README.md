@@ -127,3 +127,6 @@ real	0m0.909s
 user	0m0.544s
 sys	0m0.184s
 ```
+## ToDo's
+- Create a salt-master POC in golang
+- Improve salt client to support multiple target types and be as close to the original client
