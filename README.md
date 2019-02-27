@@ -86,21 +86,33 @@ salt-minion/salt-minion.go:
 [root@salt-master salt-golang]# go run salt-minion/salt-minion.go -id salt-minion-01 --masterip 192.168.1.1
 Authenticated with Master.
 Subscribed to Master.
-Got function : test.ping with jid map[user:root arg:[] fun:test.ping tgt_type:list jid:15511890084666866121 tgt:[salt-minion-02] ret:]
-Replied to event : map[jid:15511890084666866121 tgt:[salt-minion-02] ret: user:root arg:[] fun:test.ping tgt_type:list]
+Got function : test.ping with jid map[user:root arg:[] fun:test.ping tgt_type:list jid:15511890084666866121 tgt:[salt-minion-01] ret:]
+Replied to event : map[jid:15511890084666866121 tgt:[salt-minion-01] ret: user:root arg:[] fun:test.ping tgt_type:list]
 ```
 The minion will only answer to test.ping requests.
 
 ## Requirements
 ```
-yum install zeromq-devel -y
+[root@salt-master]# yum install zeromq-devel -y
 ```
 
 ## Installation
 ```
-go get github.com/tsaridas/salt-golang
-cd $GOPATH/src/github.com/tsaridas/salt-golang
-go get -d ./...
+[root@salt-master]# go get github.com/tsaridas/salt-golang
+[root@salt-master]# cd $GOPATH/src/github.com/tsaridas/salt-golang
+[root@salt-master]# go get -d ./...
+```
+
+## Build
+You can cd to any runnable directory and run the build
+```
+[root@salt-master salt-golang]# go build salt-cli/salt.go
+[root@salt-master salt-golang]# ls -ltah salt
+-rwxr-xr-x. 1 root root 3.3M Feb 27 09:53 salt
+[root@salt-master salt-event-listener-golang]# ./salt
+Application Flags:
+  -L string
+    	Minion comma seperated list of minions.
 ```
 
 ## Tested
