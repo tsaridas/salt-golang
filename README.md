@@ -57,10 +57,11 @@ An HTTP api that recevies a request sends them to the minion and gives the respo
 api/salt-api.go: 
 ```
 [root@salt-master salt-golang]# go run api/salt-api.go
-2019/02/26 13:38:14 Added tag salt/job/15511882940789845781/ret/salt-minion-01
-2019/02/26 13:38:14 Found tag salt/job/15511882940789845781/ret/salt-minion-01
-2019/02/26 13:38:06 Added tag salt/job/15511882869645707051/ret/salt-minion-02
-2019/02/26 13:38:11 Timeout 15511882869645707051
+[root@salt-master salt-golang]# go run salt-api.go
+2019/02/27 10:44:06 Sending command to: salt-minion-01 .
+2019/02/27 10:44:06 Got result from: salt-minion-01 .
+2019/02/27 10:44:08 Sending command to: salt-minion-02 .
+2019/02/27 10:44:13 Timeout 15512642482554418571
 ```
 ```
 [root@salt-master salt-golang]# time curl -Lv 127.0.0.1:8080/minion-id
