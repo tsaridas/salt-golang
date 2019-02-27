@@ -1,4 +1,4 @@
-# This is a POC 
+# Saltstack event-listener, client, salt-minion, salt-api in golang Proof of Concept
 
 ## Disclaimer
 This is me trying to learn some golang and had the idea to write a salt client to begin with and I ended up writing a subscriber and api. This is not something that is intended for production usage but rather as an Proof of Concept. 
