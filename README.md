@@ -109,7 +109,7 @@ You can cd to any runnable directory and run the build
 [root@salt-master salt-golang]# go build salt-cli/salt.go
 [root@salt-master salt-golang]# ls -ltah salt
 -rwxr-xr-x. 1 root root 3.3M Feb 27 09:53 salt
-[root@salt-master salt-event-listener-golang]# ./salt
+[root@salt-master salt-golang]# ./salt
 Application Flags:
   -L string
     	Minion comma seperated list of minions.
