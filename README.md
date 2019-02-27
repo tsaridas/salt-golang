@@ -64,13 +64,13 @@ api/salt-api.go:
 2019/02/27 10:44:13 Timeout 15512642482554418571
 ```
 ```
-[root@salt-master salt-golang]# time curl -Lv 127.0.0.1:8080/minion-id
+[root@salt-master salt-golang]# time curl 127.0.0.1:8080/minion-id
 true
 
 real	0m0.125s
 user	0m0.001s
 sys	0m0.007s
-[root@salt-master salt-golang]# time curl  127.0.0.1:8080/salt-minion-02
+[root@salt-master salt-golang]# time curl 127.0.0.1:8080/salt-minion-02
 false
 
 real	0m5.008s
