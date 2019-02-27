@@ -9,7 +9,7 @@ A Saltstack event listener listening for event from the unix socket. Needs to be
 
 eventlistener/event-listener.go:
 ```
-[root@salt-master salt-event-listener-golang]#go run eventlistener/event-listener.go
+[root@salt-master salt-golang]#go run eventlistener/event-listener.go
 Tag is 15511887253592021111 and ret is map[_stamp:2019-02-26T13:45:25.361952 minions:[salt-minion-01]]
 
 Tag is salt/job/15511887253592021111/new and ret is map[jid:15511887253592021111 user:root tgt:[salt-minion-01] arg:[] fun:test.ping tgt_type:list missing:[] _stamp:2019-02-26T13:45:25.363199 minions:[salt-minion-01]]
@@ -17,7 +17,7 @@ Tag is salt/job/15511887253592021111/new and ret is map[jid:15511887253592021111
 Tag is salt/job/15511887253592021111/ret/salt-minion-01 and ret is map[retcode:%!s(int8=0) success:%!s(bool=true) id:salt-minion-01 fun_args:[] jid:15511887253592021111 return:%!s(bool=true) cmd:_return _stamp:2019-02-26T13:45:25.495549 fun:test.ping]
 ```
 ```
-[root@salt-master salt-event-listener-golang]# salt -L salt-minion-01 test.ping
+[root@salt-master salt-golang]# salt -L salt-minion-01 test.ping
 salt-minion-01:
     True
 ```
@@ -27,10 +27,10 @@ A Saltstack client to sent commands from the master directly to the zmq port 450
 
 salt-cli/salt.go: 
 ```
-[root@salt-master salt-event-listener-golang]# go run salt-cli/salt.go -L minion test.ping
+[root@salt-master salt-golang]# go run salt-cli/salt.go -L minion test.ping
 salt-minion-01:
    True
-[root@salt-master salt-event-listener-golang]# go run salt-cli/salt.go -L salt-minion-01 cmd.run 'ls'
+[root@salt-master salt-golang]# go run salt-cli/salt.go -L salt-minion-01 cmd.run 'ls'
 salt-minion-01:
 anaconda-ks.cfg
 original-ks.cfg
@@ -42,10 +42,10 @@ A new version of Saltstack client which uses the libraries for client and listen
 
 salt-cli-v2/salt.go: 
 ```
-[root@salt-master salt-event-listener-golang]# go run salt-cli-v2/salt.go -L minion test.ping
+[root@salt-master salt-golang]# go run salt-cli-v2/salt.go -L minion test.ping
 salt-minion-01:
    True
-[root@salt-master salt-event-listener-golang]# go run salt-cli-v2/salt.go -L salt-minion-01 cmd.run 'ls'
+[root@salt-master salt-golang]# go run salt-cli-v2/salt.go -L salt-minion-01 cmd.run 'ls'
 salt-minion-01:
 anaconda-ks.cfg
 original-ks.cfg
@@ -56,20 +56,20 @@ An HTTP api that recevies a request sends them to the minion and gives the respo
 
 api/salt-api.go: 
 ```
-[root@salt-master salt-event-listener-golang]# go run api/salt-api.go
+[root@salt-master salt-golang]# go run api/salt-api.go
 2019/02/26 13:38:14 Added tag salt/job/15511882940789845781/ret/salt-minion-01
 2019/02/26 13:38:14 Found tag salt/job/15511882940789845781/ret/salt-minion-01
 2019/02/26 13:38:06 Added tag salt/job/15511882869645707051/ret/salt-minion-02
 2019/02/26 13:38:11 Timeout 15511882869645707051
 ```
 ```
-[root@salt-master salt-event-listener-golang]# time curl -Lv 127.0.0.1:8080/minion-id
+[root@salt-master salt-golang]# time curl -Lv 127.0.0.1:8080/minion-id
 true
 
 real	0m0.125s
 user	0m0.001s
 sys	0m0.007s
-[root@salt-master salt-event-listener-golang]# time curl  127.0.0.1:8080/salt-minion-02
+[root@salt-master salt-golang]# time curl  127.0.0.1:8080/salt-minion-02
 false
 
 real	0m5.008s
@@ -83,7 +83,7 @@ salt-minion/salt-minion.go : Will start a subscriber that connects to a salt mas
 
 salt-minion/salt-minion.go:
 ```
-[root@salt-master salt-event-listener-golang]# go run salt-minion/salt-minion.go -id salt-minion-01 --masterip 192.168.1.1
+[root@salt-master salt-golang]# go run salt-minion/salt-minion.go -id salt-minion-01 --masterip 192.168.1.1
 Authenticated with Master.
 Subscribed to Master.
 Got function : test.ping with jid map[user:root arg:[] fun:test.ping tgt_type:list jid:15511890084666866121 tgt:[salt-minion-02] ret:]
@@ -98,8 +98,8 @@ yum install zeromq-devel -y
 
 ## Installation
 ```
-go get github.com/tsaridas/salt-event-listener-golang
-cd $GOPATH/src/github.com/tsaridas/salt-event-listener-golang
+go get github.com/tsaridas/salt-golang
+cd $GOPATH/src/github.com/tsaridas/salt-golang
 go get -d ./...
 ```
 
@@ -109,7 +109,7 @@ This was tested on a Centos7.5 and salt-2018.3.3. It should work on lower and hi
 ## Performance
 With the go client
 ```
-[root@salt-master salt-event-listener-golang]# time ./salt -L salt-minion-01 test.ping
+[root@salt-master salt-golang]# time ./salt -L salt-minion-01 test.ping
 salt-minion-01:
    True
 
@@ -119,7 +119,7 @@ sys	0m0.005s
 ```
 With the python client
 ```
-[root@salt-master salt-event-listener-golang]# time salt -L salt-minion-01 test.ping
+[root@salt-master salt-golang]# time salt -L salt-minion-01 test.ping
 salt-minion-01:
     True
 
