@@ -15,7 +15,7 @@ import (
 	"fmt"
 	zmq "github.com/pebbe/zmq4"
 	"github.com/ryanuber/go-glob"
-	"github.com/tsaridas/salt-event-listener-golang/zmqapi"
+	"github.com/tsaridas/salt-golang/zmqapi"
 	"github.com/vmihailenco/msgpack"
 	"io"
 	"io/ioutil"

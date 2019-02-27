@@ -3,8 +3,8 @@ package main
 import (
 	"encoding/json"
 	"github.com/julienschmidt/httprouter"
-	client "github.com/tsaridas/salt-event-listener-golang/api/client"
-	listener "github.com/tsaridas/salt-event-listener-golang/api/listener"
+	client "github.com/tsaridas/salt-golang/api/client"
+	listener "github.com/tsaridas/salt-golang/api/listener"
 	"log"
 	"net/http"
 	"time"
