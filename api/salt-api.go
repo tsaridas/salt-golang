@@ -40,5 +40,4 @@ func main() {
 	router := httprouter.New()
 	router.GET("/:minion-id", GetPersonWithServer(s))
 	http.ListenAndServe("127.0.0.1:8080", router)
-
 }

@@ -16,6 +16,8 @@ import (
 	zmq "github.com/pebbe/zmq4"
 	"github.com/ryanuber/go-glob"
 	"github.com/tsaridas/salt-golang/zmqapi"
+	"github.com/tsaridas/salt-golang/salt-minion/minionid"
+	"github.com/tsaridas/salt-golang/salt-minion/config"
 	"github.com/vmihailenco/msgpack"
 	"io"
 	"io/ioutil"
@@ -23,6 +25,7 @@ import (
 	"os"
 	"strings"
 	"time"
+	"net"
 )
 
 func ExampleNewCBCDecrypter(key string, text []byte) (ciphertext []byte) {
@@ -87,7 +90,6 @@ func decodeEvent(buffer []byte, b64key string) (tag string, event map[string]int
 	if err != nil {
 		log.Println("Could not unmarshall with", err)
 	}
-	//fmt.Println("Got Incoming event %s\n", item1)
 
 	encodedString := item1["load"]
 	byteArray := []byte(encodedString)
@@ -189,24 +191,58 @@ func Usage() {
 func main() {
 	var minion_id string
 	var master_ip string
+	var help string
 	flag.StringVar(&minion_id, "id", "", "Salt Minion id")
 	flag.StringVar(&master_ip, "masterip", "", "Salt Master ip")
+	flag.StringVar(&help, "h", "", "Get help options")
 	flag.Parse()
 	flag.Usage = Usage
-	if len(os.Args) < 4 {
+	if help != "" {
 		Usage()
 	}
 
+	conf := config.GetConfig()
+	if master_ip != "" {
+		log.Println("Using passed master ip :", master_ip)
+	}else if conf.MasterIP != "" {
+		addrs, err := net.LookupIP(conf.MasterIP)
+		if err != nil {
+			log.Fatal("Unable to get master ip.")
+		}
+		v4 := addrs[0].To4()
+		mip, _ := v4.MarshalText()
+		master_ip = string(mip)
+		log.Println("Using configured master ip :", master_ip)
+	}else {
+		log.Println("Please define a master ip.")
+		os.Exit(1)
+	}
+		
 	SaltMasterPull := fmt.Sprintf("tcp://%s:4506", master_ip)
 	SaltMasterPub := fmt.Sprintf("tcp://%s:4505", master_ip)
+		
+	if minion_id != "" {
+		log.Println("Using passed minion id :", minion_id)
+	}else if conf.MinionID != "" {	
+		minion_id = conf.MinionID
+		log.Println("Using configured minion id :", minion_id)
+	} else if network_id := minionid.Get(); network_id != "" {
+		minion_id = network_id
+		log.Println("Using network minion id :", minion_id)
+	} else {
+		log.Println("Could not get a valid  minion id")
+		os.Exit(1)
+	}
+		
+		
 
 	aes_key := auth(minion_id, SaltMasterPull)
 	for len(aes_key) == 0 {
-		fmt.Println("Could not authenticate with Master. Please check that minion id is accepted. Retring in 10 seconds.")
+		log.Println("Could not authenticate with Master. Please check that minion id is accepted. Retring in 10 seconds.")
 		time.Sleep(10 * time.Second)
 		aes_key = auth(minion_id, SaltMasterPull)
 	}
-	fmt.Println("Authenticated with Master.")
+	log.Println("Authenticated with Master.")
 	hash := sha1.New()
 	random := rand.Reader
 	priv, _ := ioutil.ReadFile("/etc/salt/pki/minion/minion.pem")
@@ -214,14 +250,14 @@ func main() {
 	var pri *rsa.PrivateKey
 	pri, parseErr := x509.ParsePKCS1PrivateKey(privateKeyBlock.Bytes)
 	if parseErr != nil {
-		fmt.Println("Load private key error")
+		log.Println("Load private key error")
 		panic(parseErr)
 	}
 
 	bytes := []byte(aes_key)
 	decryptedData, decryptErr := rsa.DecryptOAEP(hash, random, pri, bytes, nil)
 	if decryptErr != nil {
-		fmt.Println("Decrypt data error")
+		log.Println("Decrypt data error")
 		panic(decryptErr)
 	}
 	//fmt.Println(string(decryptedData[:32]))
@@ -230,7 +266,7 @@ func main() {
 	defer subscriber.Close()
 	subscriber.Connect(SaltMasterPub)
 	subscriber.SetSubscribe("")
-	fmt.Println("Subscribed to Master.")
+	log.Println("Subscribed to Master.")
 
 	for {
 		contents, err := subscriber.RecvMessage(0)
@@ -239,7 +275,10 @@ func main() {
 		}
 		r := []byte(contents[0])
 		_, event := decodeEvent(r, string(decryptedData[:32]))
-		fmt.Printf("Got function : %s with jid %s \n", event["fun"], event)
+		log.Printf("Got function : %s with event %s \n", event["fun"], event)
+		if event == nil {
+			continue
+		}
 		jid := event["jid"].(string)
 		fun := event["fun"].(string)
 		if event["fun"] != "test.ping" {
@@ -249,14 +288,14 @@ func main() {
 		case "glob":
 			if glob.Glob(event["tgt"].(string), minion_id) {
 				reply(minion_id, SaltMasterPull, jid, fun, string(decryptedData[:32]), string(decryptedData[32:]))
-				fmt.Printf("Replied to event : %s\n", event)
+				log.Printf("Replied to event : %s\n", event)
 			}
 		case "list":
 			tgt := event["tgt"].([]interface{})
 			for _, element := range tgt {
 				if element == minion_id {
 					reply(minion_id, SaltMasterPull, jid, fun, string(decryptedData[:32]), string(decryptedData[32:]))
-					fmt.Printf("Replied to event : %s\n", event)
+					log.Printf("Replied to event : %s\n", event)
 					break
 				}
 			}
