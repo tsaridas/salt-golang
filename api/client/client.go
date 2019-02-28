@@ -36,11 +36,9 @@ func GetJid() string {
 	return newstr
 }
 
-func SendCommand(jid string) {
+func SendCommand(jid string, tgt []string) {
 	dat, err := ioutil.ReadFile("/var/cache/salt/master/.root_key")
 	check(err)
-	var tgt [1]string
-	tgt[0] = "salt-minion-01"
 	var arg [0]string
 	delimiter := map[string]interface{}{"delimiter": ":", "show_timeout": true, "show_jid": false}
 	load := map[string]interface{}{"tgt_type": "list", "jid": jid, "cmd": "publish", "tgt": tgt, "key": dat, "arg": arg, "fun": "test.ping", "kwargs": delimiter, "ret": "", "user": "root"}

@@ -5,9 +5,9 @@ import (
         client "github.com/tsaridas/salt-golang/api/client"
         listener "github.com/tsaridas/salt-golang/api/listener"
         "time"
-        "log"
 	"os"
 	"flag"
+	"strings"
 )
 
 func Usage() {
@@ -26,18 +26,29 @@ func main() {
 	if len(os.Args) < 3 {
                 Usage()
         }
+	servers := strings.Split(serverList, ",")
 	jid := client.GetJid()
-	tag := "salt/job/"+jid+"/ret/"+serverList
 	ch2 := make(chan listener.Response, 1000)
-	s.Call(tag, ch2)
+	tag := ""
+	for _, server := range servers {
+		tag = "salt/job/"+jid+"/ret/"+server
+		s.Call(tag, ch2)
+	}
 	timeout := time.After(5 * time.Second)
-	client.SendCommand(jid)
-	select {
-		case ret := <-ch2:
-			//fmt.Println("Found event", ret)
-			fmt.Printf("%s:\n%s\n", ret.Payload["id"], "    True")
-		case <-timeout:
-			log.Println("Timeout", jid)
-			s.Delete(tag)
+	client.SendCommand(jid, servers)
+	found := make(map[string]bool)
+	for range servers{
+		select {
+			case ret := <-ch2:
+				fmt.Printf("%s:\n%s\n", ret.Payload["id"], "    True")
+				//found = append(found, ret.Payload["id"].(string))
+				found[ret.Payload["id"].(string)] = true
+			case <-timeout:
+				for _, server := range servers {
+					if _, ok := found[server]; ! ok {
+						fmt.Printf("%s:\n%s\n", server, "    False")	
+					}
+				}
+		}
 	}
 }
