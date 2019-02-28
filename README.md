@@ -80,15 +80,22 @@ sys	0m0.006s
 
 #### Salt-minion
 A Salstack minion that connects to the saltstack master and receives events. You need to use target type list or glob in order to target the minion and make sure the normal salt-minion is installed and has the keys generated. 
-salt-minion/salt-minion.go : Will start a subscriber that connects to a salt master server. You need to define -id and --masterip in args.
+salt-minion/salt-minion.go : Will start a subscriber that connects to a salt master server. 
+
+- If you do not define --id it will try to load minion id from the configuration or generate it from hostname.
+- If you do not define --masterip it will try to load it from the configuration.
 
 salt-minion/salt-minion.go:
 ```
 [root@salt-master salt-golang]# go run salt-minion/salt-minion.go -id salt-minion-01 --masterip 192.168.1.1
-Authenticated with Master.
-Subscribed to Master.
-Got function : test.ping with jid map[user:root arg:[] fun:test.ping tgt_type:list jid:15511890084666866121 tgt:[salt-minion-01] ret:]
-Replied to event : map[jid:15511890084666866121 tgt:[salt-minion-01] ret: user:root arg:[] fun:test.ping tgt_type:list]
+2019/02/28 01:42:25 Loading config file: /etc/salt/minion
+2019/02/28 01:42:25 Loading config file: /etc/salt/minion.d/minion.conf
+2019/02/28 01:42:25 Using configured master ip : 192.168.1.1
+2019/02/28 01:42:25 Using configured minion id : salt-minion-01
+2019/02/28 01:42:25 Authenticated with Master.
+2019/02/28 01:42:25 Subscribed to Master.
+2019/02/28 01:42:29 Got function : test.ping with event map[tgt_type:list jid:20190228014229414793 tgt:[salt-minion-01] ret: user:sudo_vagrant arg:[] fun:test.ping]
+2019/02/28 01:42:29 Replied to event : map[user:sudo_vagrant arg:[] fun:test.ping tgt_type:list jid:20190228014229414793 tgt:[salt-minion-01] ret:]
 ```
 The minion will only answer to test.ping requests.
 
