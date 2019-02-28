@@ -42,13 +42,13 @@ A new version of Saltstack client which uses the libraries for client and listen
 
 salt-cli-v2/salt.go: 
 ```
-[root@salt-master salt-golang]# go run salt-cli-v2/salt.go -L minion test.ping
+[root@salt-master salt-golang]# go run salt-cli-v2/salt.go -L salt-minion-01,salt-minion-02,salt-minion-03 test.ping
+salt-minion-02:
+    True
 salt-minion-01:
-   True
-[root@salt-master salt-golang]# go run salt-cli-v2/salt.go -L salt-minion-01 cmd.run 'ls'
-salt-minion-01:
-anaconda-ks.cfg
-original-ks.cfg
+    True
+salt-minion-03:
+    False
 ```
 
 #### API
