@@ -28,7 +28,7 @@ import (
 	"net"
 )
 
-func ExampleNewCBCDecrypter(key string, text []byte) (ciphertext []byte) {
+func CBCDecrypt(key string, text []byte) (ciphertext []byte) {
 	//fmt.Printf("Key in Decrypter is : %s\n", key)
 	ciphertext = text
 
@@ -50,7 +50,7 @@ func ExampleNewCBCDecrypter(key string, text []byte) (ciphertext []byte) {
 	return
 }
 
-func ExampleNewCBCEncrypter(key string, text []byte) (ciphertext []byte) {
+func CBCEncrypt(key string, text []byte) (ciphertext []byte) {
 	s := string(text)
 	s = "pickle::" + s
 	// fmt.Printf("new string is %s\n", s)
@@ -94,7 +94,7 @@ func decodeEvent(buffer []byte, b64key string) (tag string, event map[string]int
 	encodedString := item1["load"]
 	byteArray := []byte(encodedString)
 
-	decryptedString := ExampleNewCBCDecrypter(string(key), byteArray)
+	decryptedString := CBCDecrypt(string(key), byteArray)
 
 	byte_result := []byte(decryptedString[8:])
 
@@ -156,7 +156,7 @@ func reply(minion_id string, master_ip string, jid string, fun string, b64key st
 	//fmt.Println("Marshalled data are :", string(b))
 	check(err)
 
-	ciphertext := ExampleNewCBCEncrypter(string(key_), b)
+	ciphertext := CBCEncrypt(string(key_), b)
 	hash := hmac.New(sha256.New, hmac_k)
 	hash.Write(ciphertext)
 	cs := string(ciphertext)
