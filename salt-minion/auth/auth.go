@@ -25,6 +25,8 @@ type Auth struct {
 	Hmac_key	string
 	master_ip	string
 	minion_id	string
+	minion_pri	string
+	minion_pub	string
 }
 
 func check(e error) {
@@ -33,69 +35,75 @@ func check(e error) {
         }
 }
 
-func (authentication *Auth) SetKeys(keys []byte) {
-	//key, _ := base64.StdEncoding.DecodeString(string(keys))
-	authentication.Aes_key = string(keys[:32])
-	authentication.Hmac_key = string(keys[32:])
+func (authentication *Auth) setKeys(keys []byte) {
+	aes, _ := base64.StdEncoding.DecodeString(string(keys[:32]))
+	hmac, _ := base64.StdEncoding.DecodeString(string(keys[32:]))
+	authentication.Aes_key = string(aes)
+	authentication.Hmac_key = string(hmac)
 }
 
 func NewAuthenticator(master_ip string, minion_id string) (authentication *Auth) {
-	authentication = &Auth{master_ip: master_ip, minion_id: minion_id}
+	minion_pub := "/etc/salt/pki/minion/minion.pub"
+	minion_pri := "/etc/salt/pki/minion/minion.pem"
+	authentication = &Auth{master_ip: master_ip, minion_id: minion_id, minion_pub: minion_pub, minion_pri: minion_pri}
 	return
 }
 
 func (authentication *Auth) DecodeEvent(buffer []byte) (tag string, event map[string]interface{}) {
-	key, _ := base64.StdEncoding.DecodeString(authentication.Aes_key)
-	var item1 map[string]string
-	err := msgpack.Unmarshal(buffer, &item1)
+	var unmarshalled map[string]string
+	err := msgpack.Unmarshal(buffer, &unmarshalled)
 	if err != nil {
-		log.Println("Could not unmarshall first item with error", err)
+		log.Println("Could not unmarshall first with error", err)
 	}
 
-	encodedString := item1["load"]
+	encodedString := unmarshalled["load"]
 	byteArray := []byte(encodedString)
-	decryptedString := authentication.CBCDecrypt(byteArray, string(key))
+	decryptedString := authentication.CBCDecrypt(byteArray)
 
 	byte_result := []byte(decryptedString[8:])
 
 	err = msgpack.Unmarshal(byte_result, &event)
 	if err != nil {
+		log.Println("Could not unmarshall. Trying to authenticate again.")
 		authentication.Authenticate()
-		log.Println("Could not unmarshall second item with error", err)
+		encodedString := unmarshalled["load"]
+		byteArray := []byte(encodedString)
+		decryptedString := authentication.CBCDecrypt(byteArray)
+		byte_result := []byte(decryptedString[8:])
+		err = msgpack.Unmarshal(byte_result, &event)
+		if err != nil {
+			log.Println("Could not unmarshall third with error.", err)
+			return
+		
+		}
 	}
 	return tag, event
 
 }
 
 func (authentication *Auth) Reply(jid string, fun string) {
-        key_, err := base64.StdEncoding.DecodeString(authentication.Aes_key)
-        hmac_k, err := base64.StdEncoding.DecodeString(authentication.Hmac_key)
-
         load := map[string]interface{}{"retcode": 0, "success": true, "cmd": "_return", "_stamp": "2019-02-24T07:21:16.549817", "fun": fun, "id": authentication.minion_id, "jid": jid, "return": true}
 
-        b, err := msgpack.Marshal(load)
-        //fmt.Println("Marshalled data are :", string(b))
+        payload, err := msgpack.Marshal(load)
         check(err)
 
-        ciphertext := authentication.CBCEncrypt(b, string(key_))
-        hash := hmac.New(sha256.New, []byte(hmac_k))
+        ciphertext := authentication.CBCEncrypt(payload)
+        hash := hmac.New(sha256.New, []byte(authentication.Hmac_key))
         hash.Write(ciphertext)
-        cs := string(ciphertext)
-        //fmt.Println("Cipher text is :", cs)
-        cs = cs + string(hash.Sum(nil))
+        string_ciphertext := string(ciphertext)
+        string_ciphertext = string_ciphertext + string(hash.Sum(nil))
 
-        msg := map[string]interface{}{"load": []byte(cs), "enc": "aes"}
+        msg := map[string]interface{}{"load": []byte(string_ciphertext), "enc": "aes"}
 
-        b, err = msgpack.Marshal(msg)
+        payload, err = msgpack.Marshal(msg)
         check(err)
-        //fmt.Println("Marshalled data are :", string(b))
 
         var verbose bool
         session, _ := mdapi.NewMdcli(authentication.master_ip, verbose)
 
         defer session.Close()
-        s := string(b)
-        ret, err := session.Send(s)
+        string_payload := string(payload)
+        ret, err := session.Send(string_payload)
         check(err)
         if len(ret) == 0 {
                 fmt.Println("Did not get a return.")
@@ -104,22 +112,22 @@ func (authentication *Auth) Reply(jid string, fun string) {
 }
 
 func (authentication *Auth) Authenticate() {
-        dat, err := ioutil.ReadFile("/etc/salt/pki/minion/minion.pub")
+        pub_key, err := ioutil.ReadFile(authentication.minion_pub)
         check(err)
 
-        load := map[string]interface{}{"cmd": "_auth", "id": authentication.minion_id, "pub": dat, "token": "asdfsadf"}
+        load := map[string]interface{}{"cmd": "_auth", "id": authentication.minion_id, "pub": pub_key, "token": "asdfsadf"}
 
         msg := map[string]interface{}{"load": load, "enc": "clear"}
 
-        b, err := msgpack.Marshal(msg)
+        payload, err := msgpack.Marshal(msg)
         check(err)
 
         var verbose bool
         session, _ := mdapi.NewMdcli(authentication.master_ip, verbose)
 
         defer session.Close()
-        s := string(b)
-        ret, err := session.Send(s)
+        string_payload := string(payload)
+        ret, err := session.Send(string_payload)
         check(err)
 
         if len(ret) == 0 {
@@ -127,19 +135,21 @@ func (authentication *Auth) Authenticate() {
                 return
         }
         byte_result := []byte(ret[0])
-        var item map[string]interface{}
-        err = msgpack.Unmarshal(byte_result, &item)
-        //fmt.Println(item["aes"])
+
+        var unmarshalled map[string]interface{}
+        err = msgpack.Unmarshal(byte_result, &unmarshalled)
+
         check(err)
-        if item["aes"] == nil {
+        if unmarshalled["aes"] == nil {
                 return
         }
- 	authentication.Auth_key = []byte(item["aes"].(string))
 
+ 	authentication.Auth_key = []byte(unmarshalled["aes"].(string))
         hash := sha1.New()
         random := rand.Reader
-        priv, _ := ioutil.ReadFile("/etc/salt/pki/minion/minion.pem")
+        priv, _ := ioutil.ReadFile(authentication.minion_pri)
         privateKeyBlock, _ := pem.Decode([]byte(priv))
+
         var pri *rsa.PrivateKey
         pri, parseErr := x509.ParsePKCS1PrivateKey(privateKeyBlock.Bytes)
         if parseErr != nil {
@@ -152,13 +162,12 @@ func (authentication *Auth) Authenticate() {
                 log.Println("Decrypt data error")
                 panic(decryptErr)
         }
-        authentication.SetKeys(auth_key)
+        authentication.setKeys(auth_key)
 }
 
-func (authentication *Auth) CBCDecrypt(text []byte, key string) (ciphertext []byte) {
-        //fmt.Printf("Key in Decrypter is : %s\n", authentication.key)
+func (authentication *Auth) CBCDecrypt(text []byte) (ciphertext []byte) {
         ciphertext = text
-        block, err := aes.NewCipher([]byte(key))
+        block, err := aes.NewCipher([]byte(authentication.Aes_key))
         if err != nil {
                 panic(err)
         }
@@ -176,22 +185,22 @@ func (authentication *Auth) CBCDecrypt(text []byte, key string) (ciphertext []by
         return
 }
 
-func (authentication *Auth) CBCEncrypt(text []byte, key string) (ciphertext []byte) {
-        s := string(text)
-        s = "pickle::" + s
-        // fmt.Printf("new string is %s\n", s)
-        pad := aes.BlockSize - len(s)%aes.BlockSize
-        //fmt.Printf("Pad is %s\n", pad)
+func (authentication *Auth) CBCEncrypt(text []byte) (ciphertext []byte) {
+        cleartext := string(text)
+        cleartext = "pickle::" + cleartext
+
+        pad := aes.BlockSize - len(cleartext)%aes.BlockSize
         upad := string(pad)
-        s2 := s + strings.Repeat(upad, pad)
-        // fmt.Printf("Pad is %s\n", s2)
-        plaintext := []byte(s2)
+
+        cleartext = cleartext + strings.Repeat(upad, pad)
+
+        plaintext := []byte(cleartext)
 
         if len(plaintext)%aes.BlockSize != 0 {
                 panic("plaintext is not a multiple of the block size")
         }
 
-        block, err := aes.NewCipher([]byte(key))
+        block, err := aes.NewCipher([]byte(authentication.Aes_key))
         if err != nil {
                 panic(err)
         }

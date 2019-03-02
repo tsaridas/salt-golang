@@ -77,7 +77,6 @@ func main() {
 	authentication := auth.NewAuthenticator(SaltMasterPull, minion_id)
 	authentication.Authenticate()
 	
-	//aes_key := auth(minion_id, SaltMasterPull)
 	for len(authentication.Auth_key) == 0 {
 		log.Println("Could not authenticate with Master. Please check that minion id is accepted. Retring in 10 seconds.")
 		time.Sleep(10 * time.Second)
@@ -87,8 +86,9 @@ func main() {
 
 	subscriber, _ := zmq.NewSocket(zmq.SUB)
 	defer subscriber.Close()
-	subscriber.Connect(SaltMasterPub)
-	subscriber.SetSubscribe("")
+
+	go subscriber.Connect(SaltMasterPub)
+	go subscriber.SetSubscribe("")
 	log.Println("Subscribed to Master.")
 
 	for {
@@ -96,8 +96,8 @@ func main() {
 		if err != nil {
 			continue
 		}
-		r := []byte(contents[0])
-		_, event := authentication.DecodeEvent(r)
+		msg := []byte(contents[0])
+		_, event := authentication.DecodeEvent(msg)
 		log.Printf("Got function : %s with event %s \n", event["fun"], event)
 		if event == nil {
 			continue
