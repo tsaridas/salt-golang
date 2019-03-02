@@ -113,6 +113,12 @@ func main() {
 				log.Printf("Replied to event : %s\n", event)
 				authentication.Reply(jid, fun)
 			}
+		case "grain":
+			log.Printf("Got grain tgt_type for event : %s\n", event)
+		case "ipcidr":
+			log.Printf("Got grain tgt_type for event : %s\n", event)
+		case "pillar":
+			log.Printf("Got grain tgt_type for event : %s\n", event)
 		case "list":
 			tgt := event["tgt"].([]interface{})
 			for _, element := range tgt {
@@ -123,6 +129,10 @@ func main() {
 				}
 			}
 		default:
+			if glob.Glob(event["tgt"].(string), minion_id) {
+				log.Printf("Replied to event : %s\n", event)
+				authentication.Reply(jid, fun)
+			}
 		}
 	}
 }
