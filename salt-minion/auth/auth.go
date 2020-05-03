@@ -81,8 +81,8 @@ func (authentication *Auth) DecodeEvent(buffer []byte) (tag string, event map[st
 
 }
 
-func (authentication *Auth) Reply(jid string, fun string) {
-        load := map[string]interface{}{"retcode": 0, "success": true, "cmd": "_return", "_stamp": "2019-02-24T07:21:16.549817", "fun": fun, "id": authentication.minion_id, "jid": jid, "return": true}
+func (authentication *Auth) Reply(jid string, fun string, repl string) {
+        load := map[string]interface{}{"retcode": 0, "success": true, "cmd": "_return", "_stamp": "2019-02-24T07:21:16.549817", "fun": fun, "id": authentication.minion_id, "jid": jid, "return": repl}
 
         payload, err := msgpack.Marshal(load)
         check(err)

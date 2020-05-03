@@ -5,15 +5,20 @@ import (
 	"fmt"
 	zmq "github.com/pebbe/zmq4"
 	"github.com/ryanuber/go-glob"
-	"github.com/tsaridas/salt-golang/salt-minion/auth"
-	"github.com/tsaridas/salt-golang/salt-minion/minionid"
-	"github.com/tsaridas/salt-golang/salt-minion/config"
+	"./auth"
+	"./minionid"
+	"./config"
 	"log"
 	"os"
 	"net"
 	"time"
+	"plugin"
+	"strings"
 )
 
+type Greeter interface {
+	Greet()
+}
 
 func check(e error) {
 	if e != nil {
@@ -104,14 +109,32 @@ func main() {
 		}
 		jid := event["jid"].(string)
 		fun := event["fun"].(string)
-		if event["fun"] != "test.ping" {
+		arg := event["arg"].([]interface{})
+		ret := ""
+		
+		mod_func := fmt.Sprintf("%s", event["fun"])
+		module_function := strings.Split(mod_func, ".")
+		module := fmt.Sprintf("./modules/%s.so", module_function[0])
+		function := module_function[1]
+		log.Printf("Got module %s and function %s and argument\n", module, function, arg)
+		plug, err := plugin.Open(module)
+		if err != nil {
+			fmt.Println(err)
 			continue
 		}
+		mod, err := plug.Lookup(strings.Title(function))
+		if err != nil {
+			log.Printf("Could not load module %s", module)
+			ret = fmt.Sprintf("Could not load module %s.", module)
+		} else {
+			ret, err = mod.(func([]interface{})(string, error))(arg)
+		}
+		
 		switch event["tgt_type"].(string) {
 		case "glob":
 			if glob.Glob(event["tgt"].(string), minion_id) {
 				log.Printf("Replied to event : %s\n", event)
-				authentication.Reply(jid, fun)
+				authentication.Reply(jid, fun, ret)
 			}
 		case "grain":
 			log.Printf("Got grain tgt_type for event : %s\n", event)
@@ -123,7 +146,7 @@ func main() {
 			tgt := event["tgt"].([]interface{})
 			for _, element := range tgt {
 				if element == minion_id {
-					authentication.Reply(jid, fun)
+					authentication.Reply(jid, fun, ret)
 					log.Printf("Replied to event second : %s\n", event)
 					break
 				}
@@ -131,7 +154,7 @@ func main() {
 		default:
 			if glob.Glob(event["tgt"].(string), minion_id) {
 				log.Printf("Replied to event : %s\n", event)
-				authentication.Reply(jid, fun)
+				authentication.Reply(jid, fun, ret)
 			}
 		}
 	}

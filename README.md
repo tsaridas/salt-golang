@@ -99,6 +99,16 @@ salt-minion/salt-minion.go:
 ```
 The minion will only answer to test.ping requests.
 
+I added some functionality to be able to load Plugins which its really useless but it was nice to play with. You can build the existing plugins with :
+
+```
+[root@salt-master salt-minion]# go build -ldflags="-s -w" -buildmode=plugin -o modules/saltutil.so modules/saltutil.go 
+[root@salt-master salt-minion]# go build -ldflags="-s -w" -buildmode=plugin -o modules/cmd.so modules/cmd.go 
+[root@salt-master salt-minion]# go build -ldflags="-s -w" -buildmode=plugin -o modules/test.so modules/test.go 
+```
+and you will be able to run test.ping, cmd.run with a parameter a command and saltutil.find_job is just dummy.
+ 
+
 ## Requirements
 ```
 [root@salt-master]# yum install zeromq-devel -y
