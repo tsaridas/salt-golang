@@ -5,9 +5,9 @@ import (
 	"fmt"
 	zmq "github.com/pebbe/zmq4"
 	"github.com/ryanuber/go-glob"
-	"./auth"
-	"./minionid"
-	"./config"
+	"github.com/tsaridas/salt-golang/salt-minion/auth"
+	"github.com/tsaridas/salt-golang/salt-minion/minionid"
+	"github.com/tsaridas/salt-golang/salt-minion/config"
 	"log"
 	"os"
 	"net"
@@ -62,6 +62,7 @@ func main() {
 		os.Exit(1)
 	}
 		
+	//SaltMasterPull := fmt.Sprintf("tcp://%s:9988", master_ip)
 	SaltMasterPull := fmt.Sprintf("tcp://%s:4506", master_ip)
 	SaltMasterPub := fmt.Sprintf("tcp://%s:4505", master_ip)
 		

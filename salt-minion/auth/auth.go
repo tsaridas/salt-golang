@@ -115,9 +115,9 @@ func (authentication *Auth) Authenticate() {
         pub_key, err := ioutil.ReadFile(authentication.minion_pub)
         check(err)
 
-        load := map[string]interface{}{"cmd": "_auth", "id": authentication.minion_id, "pub": pub_key, "token": "asdfsadf"}
+        load := map[string]interface{}{"cmd": "_auth", "id": authentication.minion_id, "pub": string(pub_key)}
 
-        msg := map[string]interface{}{"load": load, "enc": "clear"}
+        msg := map[string]interface{}{"load": load, "enc": "clear", "token": "sadfsadf"}
 
         payload, err := msgpack.Marshal(msg)
         check(err)
