@@ -106,7 +106,7 @@ func reader(m map[string]bool, jid string, module string, arg []string) {
 	for {
 		select {
 		case <-tick:
-			buf := make([]byte, 18192)
+			buf := make([]byte, 1024)
 			_, err := b.Read(buf)
 			if err != nil {
 				log.Println("Could not read buffer ", err)
@@ -194,7 +194,6 @@ func main() {
 
 
 	}
-
 	jid := getJid()
 	jidArray[0] = jid
 	reader(m, jid, module, args)

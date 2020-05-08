@@ -22,32 +22,32 @@ import (
 	"io"
 	"io/ioutil"
 	"log"
-	"os"
-	"strings"
 	"net"
-	"time"
+	"os"
 	"strconv"
+	"strings"
+	"time"
 )
 
 var aes_key []byte
 var h_mac []byte
 var entire_key []byte
 var pub_key_master []byte
-var priv_key_master []byte 
+var priv_key_master []byte
 var root_key []byte
 
 const SockAddr = "/var/run/salt/master/master_event_pub.ipc"
 
 type ClientManager struct {
-        clients    map[*Client]bool
-        broadcast  chan []byte
-        register   chan *Client
-        unregister chan *Client
+	clients    map[*Client]bool
+	broadcast  chan []byte
+	register   chan *Client
+	unregister chan *Client
 }
 
 type Client struct {
-        socket net.Conn
-        data   chan []byte
+	socket net.Conn
+	data   chan []byte
 }
 
 type Event struct {
@@ -93,12 +93,12 @@ func get_keys() {
 	aes_key = key[:key_size]
 	h_mac = key[len(key)-hmac_size:]
 	log.Println("Generated AES key.")
-	
+
 	master_pub_key_path := "/etc/salt/pki/master/master.pub"
 	if _, err := os.Stat(master_pub_key_path); err == nil {
 		pub_key_master, _ = ioutil.ReadFile(master_pub_key_path)
 		log.Println("Loaded master public key.")
-	}else {
+	} else {
 		// ToDO: Generate it
 		log.Println("Master public key does not exist in path: ", master_pub_key_path)
 		panic("Could not find master's public key")
@@ -108,22 +108,21 @@ func get_keys() {
 	if _, err := os.Stat(master_priv_key_path); err == nil {
 		priv_key_master, _ = ioutil.ReadFile(master_priv_key_path)
 		log.Println("Loaded master public key.")
-	}else {
+	} else {
 		// ToDO: Generate it
 		log.Println("Master public key does not exist in path: ", master_priv_key_path)
 		panic("Could not find master's private key")
 	}
-	
+
 	root_key_path := "/var/cache/salt/master/.root_key"
 	if _, err := os.Stat(root_key_path); err == nil {
 		root_key, _ = ioutil.ReadFile(root_key_path)
 		log.Println("Loaded master root key.")
-	}else {
+	} else {
 		// ToDO: Generate it
 		log.Println("Master root key does not exist in path: ", root_key_path)
 		panic("Could not find master's private key")
 	}
-
 
 }
 
@@ -330,15 +329,21 @@ func (manager *ClientManager) worker_routine(tcp_publisher *zmq.Socket) {
 
 		} else if result.Load["cmd"] == "publish" {
 			log.Printf("Received a publish event:%+v\n", result)
-			jid := getJid()
-				
-			if string(root_key) != result.Load["key"]{
+			var jid string
+			if val, ok := result.Load["jid"]; ok {
+				//jid = result.Load["jid"].(string)
+				jid = val.(string)
+			} else {
+				jid = getJid()
+			}
+
+			if string(root_key) != result.Load["key"] {
 				log.Println("Root key did not match.")
 				reply := map[string]interface{}{"load": "Authentication Error", "enc": "clear"}
 				payload, _ := msgpack.Marshal(reply)
 				receiver.Send(string(payload), 0)
 				continue
-			} 
+			}
 			// We probably just need to send an empty map[string]interface{}{} here
 			load := map[string]interface{}{"jid": jid, "minions": result.Load["tgt"]}
 			reply := map[string]interface{}{"load": load, "enc": "clear"}
@@ -356,90 +361,81 @@ func (manager *ClientManager) worker_routine(tcp_publisher *zmq.Socket) {
 	}
 }
 
-
 func (manager *ClientManager) start() {
-        for {
-                select {
-                case connection := <-manager.register:
-                        manager.clients[connection] = true
-			// This keeps adding connections but we don't unregister them
-                        fmt.Println("Added new connection!", manager.clients)
-                case connection := <-manager.unregister:
-                        if _, ok := manager.clients[connection]; ok {
-                                close(connection.data)
-                                delete(manager.clients, connection)
-                                fmt.Println("A connection has terminated!")
-                        }
-                case message := <-manager.broadcast:
-                        for connection := range manager.clients {
+	for {
+		select {
+		case connection := <-manager.register:
+			manager.clients[connection] = true
+			log.Println("Received new ipc connection.", manager.clients)
+		case message := <-manager.broadcast:
+			for connection := range manager.clients {
 				var buffer []byte
 				_, err := connection.socket.Write(buffer)
 				if err != nil {
 					close(connection.data)
 					delete(manager.clients, connection)
-					fmt.Println("A connection has terminated!")
+					log.Println("An IPC connection was terminated!")
 					continue
 				}
-                                select {
-                                case connection.data <- message:
-                                default:
-                                        close(connection.data)
-                                        delete(manager.clients, connection)
-                                }
-                        }
-                }
-        }
+				select {
+				case connection.data <- message:
+				default:
+					close(connection.data)
+					delete(manager.clients, connection)
+				}
+			}
+		}
+	}
 }
 
 func (manager *ClientManager) send(client *Client) {
-        defer client.socket.Close()
-        for {
-                select {
-                case message, ok := <-client.data:
-                        if !ok {
-                                return
-                        }
-                        client.socket.Write(message)
-                }
-        }
+	defer client.socket.Close()
+	for {
+		select {
+		case message, ok := <-client.data:
+			if !ok {
+				return
+			}
+			client.socket.Write(message)
+		}
+	}
 }
 
 func (manager *ClientManager) startServerMode() {
-        log.Println("Starting IPC server...")
-        if err := os.RemoveAll(SockAddr); err != nil {
-                fmt.Println(err)
-        }
-        listener, error := net.Listen("unix", SockAddr)
-        if error != nil {
-                fmt.Println(error)
-        }
-        go manager.start()
-        for {
-                connection, _ := listener.Accept()
-                if error != nil {
-                        fmt.Println(error)
-                }
-                client := &Client{socket: connection, data: make(chan []byte)}
-                manager.register <- client
-                go manager.send(client)
-        }
+	log.Println("Starting IPC server...")
+	if err := os.RemoveAll(SockAddr); err != nil {
+		fmt.Println(err)
+	}
+	listener, error := net.Listen("unix", SockAddr)
+	if error != nil {
+		fmt.Println(error)
+	}
+	go manager.start()
+	for {
+		connection, _ := listener.Accept()
+		if error != nil {
+			fmt.Println(error)
+		}
+		client := &Client{socket: connection, data: make(chan []byte)}
+		manager.register <- client
+		go manager.send(client)
+	}
 }
 
 func getJid() string {
-        t := time.Now().UnixNano()
-        str := strconv.FormatInt(t, 10)
-        s := []string{str, "1"}
-        newstr := strings.Join(s, "")
-        return newstr
+	t := time.Now().UnixNano()
+	str := strconv.FormatInt(t, 10)
+	s := []string{str, "1"}
+	newstr := strings.Join(s, "")
+	return newstr
 }
-
 
 func main() {
 	go get_keys()
 
-    	if err := os.RemoveAll(SockAddr); err != nil {
-        	log.Fatal(err)
-    	}
+	if err := os.RemoveAll(SockAddr); err != nil {
+		log.Fatal(err)
+	}
 
 	//  Socket to talk to clients
 	clients, _ := zmq.NewSocket(zmq.ROUTER)
@@ -454,14 +450,13 @@ func main() {
 	publisher.Bind("tcp://*:4505")
 	log.Println("Started Publisher on port 4505.")
 
-
 	// Socket server to publish events to socket
-       manager := ClientManager{
-                clients:    make(map[*Client]bool),
-                broadcast:  make(chan []byte),
-                register:   make(chan *Client),
-                unregister: make(chan *Client),
-        }
+	manager := ClientManager{
+		clients:    make(map[*Client]bool),
+		broadcast:  make(chan []byte),
+		register:   make(chan *Client),
+		unregister: make(chan *Client),
+	}
 
 	go manager.startServerMode()
 
@@ -471,7 +466,7 @@ func main() {
 	workers.Bind("inproc://workers")
 
 	//  Launch pool of worker goroutines
-	var nr_workers int = 1
+	var nr_workers int = 10
 	log.Printf("Started %d workers.\n", nr_workers)
 	for thread_nbr := 0; thread_nbr < nr_workers; thread_nbr++ {
 		go manager.worker_routine(publisher)
