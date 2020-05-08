@@ -1,7 +1,7 @@
-# Saltstack event-listener, client, salt-minion, salt-api in golang Proof of Concept
+# Saltstack event-listener, salt cli client, salt-minion, salt-master, salt-api Proof of Concept in golang.
 
 ## Disclaimer
-This is me trying to learn some golang and had the idea to write a salt client to begin with and I ended up writing a subscriber and api. This is not something that is intended for production usage but rather as an Proof of Concept. 
+This is me trying to learn golang and had the idea to write a salt client and ended up writing the rest.. This is not something that is intended for production usage but rather as a Proof of Concept. 
 
 ## Runnables
 #### Event Listener
@@ -20,6 +20,29 @@ Tag is salt/job/15511887253592021111/ret/salt-minion-01 and ret is map[retcode:%
 [root@salt-master salt-golang]# salt -L salt-minion-01 test.ping
 salt-minion-01:
     True
+```
+
+#### Salt Master
+A Saltstack Master listens to ports 4505,4506 and pushes events to a unix socket. It will accept auth requests and publish commands from salt-cli (Official or not). It does not support all the fuctions that a normal Salt Master does like saltfs etc.
+
+salt-master/salt-master.go:
+```
+[root@salt-master salt-golang]#go run salt-master/salt-master.go
+2020/05/08 13:01:51 Generated AES key.
+2020/05/08 13:01:51 Started Router on port 4506.
+2020/05/08 13:01:51 Started Publisher on port 4505.
+2020/05/08 13:01:51 Loaded master public key.
+2020/05/08 13:01:51 Loaded master public key.
+2020/05/08 13:01:51 Loaded master root key.
+2020/05/08 13:01:51 Starting IPC server...
+2020/05/08 13:01:51 Started 1 workers.
+2020/05/08 13:01:51 Starting proxy
+2020/05/08 15:40:19 Received an authentication event from: salt-minion-02
+2020/05/08 15:40:19 Accepted connection from minion salt-minion-02.
+2020/05/08 15:40:28 Received new ipc connection. map[0xc00000e280:true]
+2020/05/08 15:40:28 Received a publish event:{Enc:clear Load:map[arg:[] cmd:publish fun:test.ping jid:15889524281431282091 key:8f46wPP20/f1Ojel3KgwBsJfReDrUXuxcc0/zYlypVkOK5JSHgOr+LTBW+1BiZD55aWhRrUy51A=1
+ kwargs:map[delimiter:: show_jid:false show_timeout:true] ret: tgt:[salt-minion-02] tgt_type:list user:root] Token:<nil>}
+2020/05/08 15:40:28 Received ret is map[cmd:_return fun:test.ping fun_args:[] id:salt-minion-02 jid:15889524281431282091 retcode:0 return:True success:true]
 ```
 
 #### Client
@@ -158,5 +181,5 @@ user	0m0.544s
 sys	0m0.184s
 ```
 ## ToDo's
-- Create a salt-master POC in golang
+- Cleanup code
 - Improve salt client to support multiple target types and be as close to the original client

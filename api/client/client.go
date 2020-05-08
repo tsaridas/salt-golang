@@ -36,12 +36,19 @@ func GetJid() string {
 	return newstr
 }
 
-func SendCommand(jid string, tgt []string) {
-	dat, err := ioutil.ReadFile("/var/cache/salt/master/.root_key")
-	check(err)
-	var arg [0]string
+func SendCommand(jid string, tgt string, targetType string, module string) {
 	delimiter := map[string]interface{}{"delimiter": ":", "show_timeout": true, "show_jid": false}
-	load := map[string]interface{}{"tgt_type": "list", "jid": jid, "cmd": "publish", "tgt": tgt, "key": dat, "arg": arg, "fun": "test.ping", "kwargs": delimiter, "ret": "", "user": "root"}
+	var arg [0]string
+	load := make(map[string]interface{})
+	dat, err := ioutil.ReadFile("/var/cache/salt/master/.root_key")
+	if targetType == "list"{
+		tgt_list := strings.Split(tgt, ",")	
+		load = map[string]interface{}{"tgt_type": targetType, "jid": jid, "cmd": "publish", "tgt": tgt_list, "key": string(dat), "arg": arg, "fun": module, "kwargs": delimiter, "ret": "", "user": "root"}
+	} else {
+		load = map[string]interface{}{"tgt_type": targetType, "jid": jid, "cmd": "publish", "tgt": tgt, "key": string(dat), "arg": arg, "fun": module, "kwargs": delimiter, "ret": "", "user": "root"}
+		
+	}
+	check(err)
 	msg := map[string]interface{}{"load": load, "enc": "clear"}
 
 	b, err := msgpack.Marshal(msg)

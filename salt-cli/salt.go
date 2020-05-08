@@ -48,7 +48,7 @@ func sendJob(jid string, module string, arg []string) {
 	check(err)
 
 	delimiter := map[string]interface{}{"delimiter": ":", "show_timeout": true, "show_jid": false}
-	load := map[string]interface{}{"tgt_type": "list", "jid": jid, "cmd": "publish", "tgt": tgt, "key": dat, "arg": arg, "fun": module, "kwargs": delimiter, "ret": "", "user": "root"}
+	load := map[string]interface{}{"tgt_type": "list", "jid": jid, "cmd": "publish", "tgt": tgt, "key": string(dat), "arg": arg, "fun": module, "kwargs": delimiter, "ret": "", "user": "root"}
 	msg := map[string]interface{}{"load": load, "enc": "clear"}
 
 	b, err := msgpack.Marshal(msg)
@@ -106,10 +106,9 @@ func reader(m map[string]bool, jid string, module string, arg []string) {
 	for {
 		select {
 		case <-tick:
-			buf := make([]byte, 18192)
+			buf := make([]byte, 1024)
 			_, err := b.Read(buf)
-			if err != nil {
-				log.Println("Could not read buffer ", err)
+			if err == io.EOF {
 				continue
 			}
 			var item1 map[string]interface{}
@@ -194,7 +193,6 @@ func main() {
 
 
 	}
-
 	jid := getJid()
 	jidArray[0] = jid
 	reader(m, jid, module, args)
