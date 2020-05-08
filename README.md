@@ -1,7 +1,7 @@
-# Saltstack event-listener, client, salt-minion, salt-api in golang Proof of Concept
+# Saltstack event-listener, salt cli client, salt-minion, salt-master, salt-api Proof of Concept in golang.
 
 ## Disclaimer
-This is me trying to learn some golang and had the idea to write a salt client to begin with and I ended up writing a subscriber and api. This is not something that is intended for production usage but rather as a Proof of Concept. 
+This is me trying to learn golang and had the idea to write a salt client and ended up writing the rest.. This is not something that is intended for production usage but rather as a Proof of Concept. 
 
 ## Runnables
 #### Event Listener

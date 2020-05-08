@@ -108,8 +108,7 @@ func reader(m map[string]bool, jid string, module string, arg []string) {
 		case <-tick:
 			buf := make([]byte, 1024)
 			_, err := b.Read(buf)
-			if err != nil {
-				log.Println("Could not read buffer ", err)
+			if err == io.EOF {
 				continue
 			}
 			var item1 map[string]interface{}

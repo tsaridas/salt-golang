@@ -199,40 +199,15 @@ func (manager *ClientManager) worker_routine(tcp_publisher *zmq.Socket) {
 	receiver.Connect("inproc://workers")
 	for {
 		msg, _ := receiver.Recv(0)
-		//fmt.Println("Received raw request: [" + msg + "]")
 		b := []byte(msg)
 		var event map[string]interface{}
 		err := msgpack.Unmarshal(b, &event)
-		//fmt.Printf("\n\n Received first data ", event)
+		//fmt.Printf("Received first data %s\n", event)
 		var result Event
 		var resultAes EventAes
 		err = mapstructure.Decode(event, &result)
 		if err != nil {
-			//fmt.Printf("\nCould not decode event with error %s\n", err)
 			err = mapstructure.Decode(event, &resultAes)
-			if err != nil {
-				// This is probably a return event
-				var other map[string]interface{}
-				err = mapstructure.Decode(event, &other)
-				plaintext := CBCDecrypt(other["load"].([]byte))
-				unpickle := plaintext[8:]
-				var last map[string]interface{}
-				_ = msgpack.Unmarshal(unpickle, &last)
-				log.Printf("Received ret is %+v\n", last)
-
-				//add to event buss
-				tag := fmt.Sprintf("salt/job/%s/ret/%s", last["jid"], last["id"])
-				manager.broadCast(tag, last)
-
-				//reply
-				empty_map := map[string]interface{}{}
-				s, _ := msgpack.Marshal(empty_map)
-				enc_pillar := CBCEncrypt([]byte(s))
-				d, _ := msgpack.Marshal(enc_pillar)
-				//  Send reply back to client
-				receiver.Send(string(d), 0)
-				continue
-			}
 			plaintext := CBCDecrypt([]byte(resultAes.Load))
 			without_pickle := plaintext[8:]
 			var final map[string]interface{}
@@ -286,11 +261,9 @@ func (manager *ClientManager) worker_routine(tcp_publisher *zmq.Socket) {
 			log.Printf("Received an authentication event from: %s\n", result.Load["id"])
 			minion_pub_path := fmt.Sprintf("/etc/salt/pki/master/minions/%s", result.Load["id"])
 			if _, err := os.Stat(minion_pub_path); err == nil {
-				//fmt.Println("Minion path exists")
 				pub_key, _ := ioutil.ReadFile(minion_pub_path)
 				if string(pub_key) == result.Load["pub"] {
 					master_priv_key, _ := ioutil.ReadFile("/etc/salt/pki/master/master.pem")
-					//fmt.Println("Minion key maches.")
 					var token []byte
 					var Token []byte
 					if result.Load["token"] != nil {
@@ -304,10 +277,9 @@ func (manager *ClientManager) worker_routine(tcp_publisher *zmq.Socket) {
 							log.Printf("Private Key error %s\n", priv_err)
 						}
 						token = DecryptWithPrivateKey(enc_token, privateKey)
-						//fmt.Printf("Plaintext is %s\n", token)
 					}
 
-					// Here we try to create messages
+					// Try to create messages
 					pubPem, _ := pem.Decode([]byte(pub_key))
 					parsedKey, _ := x509.ParsePKIXPublicKey(pubPem.Bytes)
 					var pubKey *rsa.PublicKey
@@ -316,13 +288,18 @@ func (manager *ClientManager) worker_routine(tcp_publisher *zmq.Socket) {
 					if token != nil {
 						Token = EncryptWithPublicKey([]byte(token), pubKey)
 					}
+
+					//  Send reply back to client
 					reply := map[string]interface{}{"publish_port": "4505", "enc": "pub", "pub_key": string(pub_key_master), "aes": string(enc_blob), "token": string(Token)}
 					payload, _ := msgpack.Marshal(reply)
-					//  Send reply back to client
 					receiver.Send(string(payload), 0)
 					log.Printf("Accepted connection from minion %s.", result.Load["id"])
 				} else {
 					log.Printf("Minion %s key does not match.", result.Load["id"])
+					//  Send reply back to client
+					reply := map[string]interface{}{}
+					payload, _ := msgpack.Marshal(reply)
+					receiver.Send(string(payload), 0)
 				}
 
 			}
@@ -354,8 +331,8 @@ func (manager *ClientManager) worker_routine(tcp_publisher *zmq.Socket) {
 			command := map[string]interface{}{"tgt_type": result.Load["tgt_type"], "jid": jid, "tgt": result.Load["tgt"], "ret": "", "user": "sudo_vagrant", "arg": result.Load["arg"], "fun": result.Load["fun"]}
 			command_mar, _ := msgpack.Marshal(command)
 			enc_command := CBCEncrypt([]byte(command_mar))
-			l := map[string]interface{}{"load": enc_command, "enc": "aes", "sig": ""}
-			payload, _ = msgpack.Marshal(l)
+			msg := map[string]interface{}{"load": enc_command, "enc": "aes", "sig": ""}
+			payload, _ = msgpack.Marshal(msg)
 			tcp_publisher.Send(string(payload), 0)
 		}
 	}
