@@ -1,7 +1,7 @@
 # Saltstack event-listener, client, salt-minion, salt-api in golang Proof of Concept
 
 ## Disclaimer
-This is me trying to learn some golang and had the idea to write a salt client to begin with and I ended up writing a subscriber and api. This is not something that is intended for production usage but rather as an Proof of Concept. 
+This is me trying to learn some golang and had the idea to write a salt client to begin with and I ended up writing a subscriber and api. This is not something that is intended for production usage but rather as a Proof of Concept. 
 
 ## Runnables
 #### Event Listener
@@ -20,6 +20,23 @@ Tag is salt/job/15511887253592021111/ret/salt-minion-01 and ret is map[retcode:%
 [root@salt-master salt-golang]# salt -L salt-minion-01 test.ping
 salt-minion-01:
     True
+```
+
+#### Salt Master
+A Saltstack Master listens to ports 4505,4506 and pushes events to a unix socket. It will accept auth requests and publish commands from salt-cli (Official or not). It does not support all the fuctions that a normal Salt Master does like saltfs etc.
+
+salt-master/salt-master.go:
+```
+[root@salt-master salt-golang]#go run salt-master/salt-master.go
+2020/05/08 13:01:51 Generated AES key.
+2020/05/08 13:01:51 Started Router on port 4506.
+2020/05/08 13:01:51 Started Publisher on port 4505.
+2020/05/08 13:01:51 Loaded master public key.
+2020/05/08 13:01:51 Loaded master public key.
+2020/05/08 13:01:51 Loaded master root key.
+2020/05/08 13:01:51 Starting IPC server...
+2020/05/08 13:01:51 Started 1 workers.
+2020/05/08 13:01:51 Starting proxy
 ```
 
 #### Client

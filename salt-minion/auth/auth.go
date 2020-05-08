@@ -116,16 +116,15 @@ func (authentication *Auth) Authenticate() {
         check(err)
 
         load := map[string]interface{}{"cmd": "_auth", "id": authentication.minion_id, "pub": string(pub_key)}
-
-        msg := map[string]interface{}{"load": load, "enc": "clear", "token": "sadfsadf"}
+        msg := map[string]interface{}{"load": load, "enc": "clear"}
 
         payload, err := msgpack.Marshal(msg)
         check(err)
 
         var verbose bool
         session, _ := mdapi.NewMdcli(authentication.master_ip, verbose)
-
         defer session.Close()
+
         string_payload := string(payload)
         ret, err := session.Send(string_payload)
         check(err)
@@ -134,8 +133,8 @@ func (authentication *Auth) Authenticate() {
                 fmt.Println("Did not get a return.")
                 return
         }
-        byte_result := []byte(ret[0])
 
+        byte_result := []byte(ret[0])
         var unmarshalled map[string]interface{}
         err = msgpack.Unmarshal(byte_result, &unmarshalled)
 

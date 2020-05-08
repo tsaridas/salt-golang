@@ -48,7 +48,7 @@ func sendJob(jid string, module string, arg []string) {
 	check(err)
 
 	delimiter := map[string]interface{}{"delimiter": ":", "show_timeout": true, "show_jid": false}
-	load := map[string]interface{}{"tgt_type": "list", "jid": jid, "cmd": "publish", "tgt": tgt, "key": dat, "arg": arg, "fun": module, "kwargs": delimiter, "ret": "", "user": "root"}
+	load := map[string]interface{}{"tgt_type": "list", "jid": jid, "cmd": "publish", "tgt": tgt, "key": string(dat), "arg": arg, "fun": module, "kwargs": delimiter, "ret": "", "user": "root"}
 	msg := map[string]interface{}{"load": load, "enc": "clear"}
 
 	b, err := msgpack.Marshal(msg)
