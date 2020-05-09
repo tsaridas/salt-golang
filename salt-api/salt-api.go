@@ -3,14 +3,14 @@ package main
 import (
 	"encoding/json"
 	"github.com/julienschmidt/httprouter"
-	client "github.com/tsaridas/salt-golang/api/client"
-	listener "github.com/tsaridas/salt-golang/api/listener"
+	client "github.com/tsaridas/salt-golang/lib/client"
+	listener "github.com/tsaridas/salt-golang/lib/listener"
 	"log"
 	"net/http"
 	"time"
 )
 
-func GetPersonWithServer(s *listener.Server) httprouter.Handle {
+func getMinionID(s *listener.Server) httprouter.Handle {
 	return func(w http.ResponseWriter, req *http.Request, ps httprouter.Params) {
 		jid := client.GetJid()
 		tag := "salt/job/" + jid + "/ret/" + ps.ByName("minion-id")
@@ -33,10 +33,10 @@ func GetPersonWithServer(s *listener.Server) httprouter.Handle {
 
 func main() {
 	s := listener.NewServer()
-	go s.Loop()
+	go s.Start()
 	go s.ReadMessages()
 
 	router := httprouter.New()
-	router.GET("/:minion-id", GetPersonWithServer(s))
+	router.GET("/:minion-id", getMinionID(s))
 	http.ListenAndServe("127.0.0.1:8080", router)
 }

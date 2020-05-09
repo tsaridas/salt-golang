@@ -2,7 +2,7 @@ package minionid
 
 import (
 	"bufio"
-	"github.com/tsaridas/salt-golang/salt-minion/utils"
+	"github.com/tsaridas/salt-golang/lib/utils"
 	"net"
 	"os"
 	"strings"
@@ -37,19 +37,19 @@ func getNetwork() string {
 	}
 	return hostname
 }
-
+// Get minion id
 func Get() string {
 	if file.Exists("/etc/salt/minion_id") {
 		f, _ := os.Open("/etc/salt/minion_id")
 		defer f.Close()
 		reader := bufio.NewReader(f)
-		minion_id, _, _ := reader.ReadLine()
-		return string(minion_id)
+		minionID, _, _ := reader.ReadLine()
+		return string(minionID)
 	}
-	network_id := getNetwork()
-	if network_id == "localhost" || network_id == "unknown" {
+	networkID := getNetwork()
+	if networkID == "localhost" || networkID == "unknown" {
 		return ""
 	}
-	return "network_id"
+	return networkID
 
 }

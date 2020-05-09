@@ -3,28 +3,28 @@ package main
 import (
 	"flag"
 	"fmt"
-	client "github.com/tsaridas/salt-golang/api/client"
-	listener "github.com/tsaridas/salt-golang/api/listener"
+	client "github.com/tsaridas/salt-golang/lib/client"
+	listener "github.com/tsaridas/salt-golang/lib/listener"
 	"os"
 	"strings"
 	"time"
 )
 
-func Usage() {
-	fmt.Println("Application Flags:")
+func usage() {
+	fmt.Println("Application Flags: -L, -G")
 	flag.PrintDefaults()
 	os.Exit(0)
 }
 
 func main() {
 	s := listener.NewServer()
-	go s.Loop()
+	go s.Start()
 	go s.ReadMessages()
 	var serverList string
 	var targetType string
 	var module string
 	if len(os.Args) < 3 {
-		Usage()
+		usage()
 	}
 
 	switch string(os.Args[1]) {
@@ -32,7 +32,7 @@ func main() {
 		serverList = os.Args[2]
 		targetType = "list"
 		module = os.Args[3]
-	case "Grains":
+	case "-G":
 		serverList = os.Args[2]
 		targetType = "grains"
 		module = os.Args[3]

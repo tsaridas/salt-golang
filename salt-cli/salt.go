@@ -25,12 +25,12 @@ func check(e error) {
 	}
 }
 
-type Something struct {
-	Load Event  `msgpack:"load"`
+type something struct {
+	Load event  `msgpack:"load"`
 	Enc  string `msgpack:"enc"`
 }
 
-type Event struct {
+type event struct {
 	JID     string   `msgpack:"jid"`
 	Minions []string `msgpack:"minions"`
 }
@@ -69,19 +69,19 @@ func sendJob(jid string, module string, arg []string) {
 		fmt.Println("Did not get a return.")
 		return
 	}
-	byte_result := []byte(ret[0])
-	var item Something
-	err = msgpack.Unmarshal(byte_result, &item)
+	byteResult := []byte(ret[0])
+	var item something
+	err = msgpack.Unmarshal(byteResult, &item)
 	check(err)
 }
 
-type EventListener struct {
+type eventListener struct {
 	reader     *io.Reader
 	SocketType string
 	SocketPath string
 }
 
-func (el *EventListener) Dial() (reply io.Reader) {
+func (el *eventListener) dial() (reply io.Reader) {
 	ret, err := net.Dial(el.SocketType, el.SocketPath)
 	if err != nil {
 		log.Fatal("Could not connect to socket", err)
@@ -90,8 +90,8 @@ func (el *EventListener) Dial() (reply io.Reader) {
 	return
 }
 
-func NewEventListener(st string, sp string) (el *EventListener) {
-	el = &EventListener{SocketType: st, SocketPath: sp}
+func newEventListener(st string, sp string) (el *eventListener) {
+	el = &eventListener{SocketType: st, SocketPath: sp}
 	return
 }
 
@@ -99,8 +99,8 @@ func reader(m map[string]bool, jid string, module string, arg []string) {
 	timeout := time.After(time.Second * 50)
 	tick := time.Tick(time.Millisecond)
 	socket := "unix"
-	el := NewEventListener(socket, "/var/run/salt/master/master_event_pub.ipc")
-	b := el.Dial()
+	el := newEventListener(socket, "/var/run/salt/master/master_event_pub.ipc")
+	b := el.dial()
 	count := 0
 	go sendJob(jid, module, arg)
 	for {
@@ -117,16 +117,16 @@ func reader(m map[string]bool, jid string, module string, arg []string) {
 				log.Println("Could not unmarshall", err)
 				continue
 			}
-			result_all := fmt.Sprint(item1["body"])
-			result_list := strings.SplitN(result_all, "\n\n", 2)
-			result_tag := result_list[0]
-			byte_result := []byte(result_list[1])
+			resultAll := fmt.Sprint(item1["body"])
+			resultList := strings.SplitN(resultAll, "\n\n", 2)
+			resultTag := resultList[0]
+			byteResult := []byte(resultList[1])
 			found := false
 
 			for jid := range jidArray {
 				tag := "salt/job/" + jidArray[jid] + "/ret"
-				if strings.Contains(result_tag, tag) {
-					count += 1
+				if strings.Contains(resultTag, tag) {
+					count++
 					found = true
 					break
 				}
@@ -137,7 +137,7 @@ func reader(m map[string]bool, jid string, module string, arg []string) {
 			}
 
 			var item map[string]interface{}
-			err = msgpack.Unmarshal(byte_result, &item)
+			err = msgpack.Unmarshal(byteResult, &item)
 			if err != nil {
 				log.Println("Could not unmarshall", err)
 				continue
@@ -161,7 +161,7 @@ func reader(m map[string]bool, jid string, module string, arg []string) {
 	}
 }
 
-func Usage() {
+func usage() {
 	fmt.Println("Application Flags:")
 	flag.PrintDefaults()
 	os.Exit(0)
@@ -172,9 +172,9 @@ func main() {
 	var serverList string
 	flag.StringVar(&serverList, "L", "", "Minion comma seperated list of minions.")
 	flag.Parse()
-	flag.Usage = Usage
+	flag.Usage = usage
 	if len(os.Args) < 4 {
-		Usage()
+		usage()
 	}
 	module := os.Args[3]
 	args := []string{}

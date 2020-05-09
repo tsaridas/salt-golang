@@ -18,6 +18,8 @@ import (
 	"fmt"
 	"github.com/mitchellh/mapstructure"
 	zmq "github.com/pebbe/zmq4"
+	"github.com/tsaridas/salt-golang/lib/rsa"
+	"github.com/tsaridas/salt-golang/lib/utils"
 	msgpack "github.com/vmihailenco/msgpack"
 	"io"
 	"io/ioutil"
@@ -263,7 +265,7 @@ func (manager *clientManager) workerRoutine(tcpPublisher *zmq.Socket) {
 		if result.Load["cmd"] == "_auth" {
 			log.Printf("Received an authentication event from: %s\n", result.Load["id"])
 			minionPubPath := fmt.Sprintf("/etc/salt/pki/master/minions/%s", result.Load["id"])
-			if _, err := os.Stat(minionPubPath); err == nil {
+			if file.Exists(minionPubPath) {
 				pubKey, _ := ioutil.ReadFile(minionPubPath)
 				if string(pubKey) == result.Load["pub"] {
 					var token []byte
@@ -274,8 +276,8 @@ func (manager *clientManager) workerRoutine(tcpPublisher *zmq.Socket) {
 						privateKeyBlock, _ := pem.Decode(privKeyMaster)
 
 						var privateKey *rsa.PrivateKey
-						privateKey, privRrr := x509.ParsePKCS1PrivateKey(privateKeyBlock.Bytes)
-						if privRrr != nil {
+						privateKey, privErr := x509.ParsePKCS1PrivateKey(privateKeyBlock.Bytes)
+						if privErr != nil {
 							log.Printf("Private Key error %s\n", privErr)
 						}
 						token = DecryptWithPrivateKey(encToken, privateKey)
@@ -298,18 +300,35 @@ func (manager *clientManager) workerRoutine(tcpPublisher *zmq.Socket) {
 					log.Printf("Accepted connection from minion %s.", result.Load["id"])
 				} else {
 					log.Printf("Minion %s key does not match.", result.Load["id"])
+
 					//  Send reply back to client
 					reply := map[string]interface{}{}
 					payload, _ := msgpack.Marshal(reply)
 					receiver.Send(string(payload), 0)
 				}
 
+			} else {
+				minionPubPathPre := fmt.Sprintf("/etc/salt/pki/master/minions_pre/%s", result.Load["id"])
+				sPub := result.Load["pub"].(string)
+				pubKey, err := rsakeys.LoadPubKeyFromString(sPub)
+				if err != nil {
+					log.Println("Could not load pubkey")
+				}
+				if !file.Exists(minionPubPathPre) {
+					rsakeys.SavePublicPEMKey(minionPubPathPre, *pubKey)
+				}
+				log.Printf("Minion %s is not accepted.\n", result.Load["id"], pubKey)
+
+				//  Send reply back to client
+				reply := map[string]interface{}{}
+				payload, _ := msgpack.Marshal(reply)
+				receiver.Send(string(payload), 0)
 			}
 
 		} else if result.Load["cmd"] == "publish" {
 			log.Printf("Received a publish event:%+v\n", result)
 			var jid string
-			if val,ok  := result.Load["jid"]; ok && val != "" {
+			if val, ok := result.Load["jid"]; ok && val != "" {
 				jid = val.(string)
 			} else {
 				jid = getJid()

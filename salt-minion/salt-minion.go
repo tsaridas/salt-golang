@@ -77,7 +77,7 @@ func main() {
 	authentication := auth.NewAuthenticator(SaltMasterPull, minionID)
 	authentication.Authenticate()
 
-	for len(authentication.Auth_key) == 0 {
+	for len(authentication.AuthKey) == 0 {
 		log.Println("Could not authenticate with Master. Please check that minion id is accepted. Retring in 10 seconds.")
 		time.Sleep(10 * time.Second)
 		authentication.Authenticate()

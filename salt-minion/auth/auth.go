@@ -13,21 +13,22 @@ import (
 	"encoding/pem"
 	"fmt"
 	"github.com/tsaridas/salt-golang/zmqapi"
+	librsa "github.com/tsaridas/salt-golang/lib/rsa"
 	"github.com/vmihailenco/msgpack"
 	"io"
 	"io/ioutil"
 	"log"
 	"strings"
 )
-
+// Auth struct
 type Auth struct {
-	Auth_key   []byte
-	Aes_key    string
-	Hmac_key   string
-	master_ip  string
-	minion_id  string
-	minion_pri string
-	minion_pub string
+	AuthKey   []byte
+	aesKey    string
+	hmaKkey   string
+	masterIP  string
+	minionID  string
+	minionPriv string
+	minionPub string
 }
 
 func check(e error) {
@@ -39,17 +40,18 @@ func check(e error) {
 func (authentication *Auth) setKeys(keys []byte) {
 	aes, _ := base64.StdEncoding.DecodeString(string(keys[:32]))
 	hmac, _ := base64.StdEncoding.DecodeString(string(keys[32:]))
-	authentication.Aes_key = string(aes)
-	authentication.Hmac_key = string(hmac)
+	authentication.aesKey = string(aes)
+	authentication.hmaKkey = string(hmac)
 }
-
-func NewAuthenticator(master_ip string, minion_id string) (authentication *Auth) {
-	minion_pub := "/etc/salt/pki/minion/minion.pub"
-	minion_pri := "/etc/salt/pki/minion/minion.pem"
-	authentication = &Auth{master_ip: master_ip, minion_id: minion_id, minion_pub: minion_pub, minion_pri: minion_pri}
+// NewAuthenticator object
+func NewAuthenticator(masterIP string, minionID string) (authentication *Auth) {
+	minionPub := "/etc/salt/pki/minion/minion.pub"
+	minionPriv := "/etc/salt/pki/minion/minion.pem"
+	librsa.GeneratePEMKeys(minionPriv, minionPub)
+	authentication = &Auth{masterIP: masterIP, minionID: minionID, minionPub: minionPub, minionPriv: minionPriv}
 	return
 }
-
+// DecodeEvent data
 func (authentication *Auth) DecodeEvent(buffer []byte) (tag string, event map[string]interface{}) {
 	var unmarshalled map[string]string
 	err := msgpack.Unmarshal(buffer, &unmarshalled)
@@ -61,17 +63,17 @@ func (authentication *Auth) DecodeEvent(buffer []byte) (tag string, event map[st
 	byteArray := []byte(encodedString)
 	decryptedString := authentication.CBCDecrypt(byteArray)
 
-	byte_result := []byte(decryptedString[8:])
+	byteResult := []byte(decryptedString[8:])
 
-	err = msgpack.Unmarshal(byte_result, &event)
+	err = msgpack.Unmarshal(byteResult, &event)
 	if err != nil {
 		log.Println("Could not unmarshall. Trying to authenticate again.")
 		authentication.Authenticate()
 		encodedString := unmarshalled["load"]
 		byteArray := []byte(encodedString)
 		decryptedString := authentication.CBCDecrypt(byteArray)
-		byte_result := []byte(decryptedString[8:])
-		err = msgpack.Unmarshal(byte_result, &event)
+		byteResult := []byte(decryptedString[8:])
+		err = msgpack.Unmarshal(byteResult, &event)
 		if err != nil {
 			log.Println("Could not unmarshall third with error.", err)
 			return
@@ -81,53 +83,53 @@ func (authentication *Auth) DecodeEvent(buffer []byte) (tag string, event map[st
 	return tag, event
 
 }
-
+// Reply to master
 func (authentication *Auth) Reply(jid string, fun string, repl string) {
-	load := map[string]interface{}{"retcode": 0, "success": true, "cmd": "_return", "fun": fun, "id": authentication.minion_id, "jid": jid, "return": repl, "fun_args": []string{}}
+	load := map[string]interface{}{"retcode": 0, "success": true, "cmd": "_return", "fun": fun, "id": authentication.minionID, "jid": jid, "return": repl, "fun_args": []string{}}
 
 	payload, err := msgpack.Marshal(load)
 	check(err)
 
 	ciphertext := authentication.CBCEncrypt(payload)
-	hash := hmac.New(sha256.New, []byte(authentication.Hmac_key))
+	hash := hmac.New(sha256.New, []byte(authentication.hmaKkey))
 	hash.Write(ciphertext)
-	string_ciphertext := string(ciphertext)
-	string_ciphertext = string_ciphertext + string(hash.Sum(nil))
+	stringCiphertext := string(ciphertext)
+	stringCiphertext = stringCiphertext + string(hash.Sum(nil))
 
-	msg := map[string]interface{}{"load": string(string_ciphertext), "enc": "aes"}
+	msg := map[string]interface{}{"load": string(stringCiphertext), "enc": "aes"}
 
 	payload, err = msgpack.Marshal(msg)
 	check(err)
 
 	var verbose bool
-	session, _ := mdapi.NewMdcli(authentication.master_ip, verbose)
+	session, _ := mdapi.NewMdcli(authentication.masterIP, verbose)
 
 	defer session.Close()
-	string_payload := string(payload)
-	ret, err := session.Send(string_payload)
+	stringPayload := string(payload)
+	ret, err := session.Send(stringPayload)
 	check(err)
 	if len(ret) == 0 {
 		fmt.Println("Did not get a return.")
 	}
 	return
 }
-
+// Authenticate to master
 func (authentication *Auth) Authenticate() {
-	pub_key, err := ioutil.ReadFile(authentication.minion_pub)
+	pubKey, err := ioutil.ReadFile(authentication.minionPub)
 	check(err)
 
-	load := map[string]interface{}{"cmd": "_auth", "id": authentication.minion_id, "pub": string(pub_key)}
+	load := map[string]interface{}{"cmd": "_auth", "id": authentication.minionID, "pub": string(pubKey)}
 	msg := map[string]interface{}{"load": load, "enc": "clear"}
 
 	payload, err := msgpack.Marshal(msg)
 	check(err)
 
 	var verbose bool
-	session, _ := mdapi.NewMdcli(authentication.master_ip, verbose)
+	session, _ := mdapi.NewMdcli(authentication.masterIP, verbose)
 	defer session.Close()
 
-	string_payload := string(payload)
-	ret, err := session.Send(string_payload)
+	stringPayload := string(payload)
+	ret, err := session.Send(stringPayload)
 	check(err)
 
 	if len(ret) == 0 {
@@ -135,19 +137,19 @@ func (authentication *Auth) Authenticate() {
 		return
 	}
 
-	byte_result := []byte(ret[0])
+	byteResult := []byte(ret[0])
 	var unmarshalled map[string]interface{}
-	err = msgpack.Unmarshal(byte_result, &unmarshalled)
+	err = msgpack.Unmarshal(byteResult, &unmarshalled)
 
 	check(err)
 	if unmarshalled["aes"] == nil {
 		return
 	}
 
-	authentication.Auth_key = []byte(unmarshalled["aes"].(string))
+	authentication.AuthKey = []byte(unmarshalled["aes"].(string))
 	hash := sha1.New()
 	random := rand.Reader
-	priv, _ := ioutil.ReadFile(authentication.minion_pri)
+	priv, _ := ioutil.ReadFile(authentication.minionPriv)
 	privateKeyBlock, _ := pem.Decode([]byte(priv))
 
 	var pri *rsa.PrivateKey
@@ -157,17 +159,17 @@ func (authentication *Auth) Authenticate() {
 		panic(parseErr)
 	}
 
-	auth_key, decryptErr := rsa.DecryptOAEP(hash, random, pri, authentication.Auth_key, nil)
+	authKey, decryptErr := rsa.DecryptOAEP(hash, random, pri, authentication.AuthKey, nil)
 	if decryptErr != nil {
 		log.Println("Decrypt data error")
 		panic(decryptErr)
 	}
-	authentication.setKeys(auth_key)
+	authentication.setKeys(authKey)
 }
-
+// CBCDecrypt load
 func (authentication *Auth) CBCDecrypt(text []byte) (ciphertext []byte) {
 	ciphertext = text
-	block, err := aes.NewCipher([]byte(authentication.Aes_key))
+	block, err := aes.NewCipher([]byte(authentication.aesKey))
 	if err != nil {
 		panic(err)
 	}
@@ -184,7 +186,7 @@ func (authentication *Auth) CBCDecrypt(text []byte) (ciphertext []byte) {
 	mode.CryptBlocks(ciphertext, ciphertext)
 	return
 }
-
+// CBCEncrypt load
 func (authentication *Auth) CBCEncrypt(text []byte) (ciphertext []byte) {
 	cleartext := string(text)
 	cleartext = "pickle::" + cleartext
@@ -200,7 +202,7 @@ func (authentication *Auth) CBCEncrypt(text []byte) (ciphertext []byte) {
 		panic("plaintext is not a multiple of the block size")
 	}
 
-	block, err := aes.NewCipher([]byte(authentication.Aes_key))
+	block, err := aes.NewCipher([]byte(authentication.aesKey))
 	if err != nil {
 		panic(err)
 	}

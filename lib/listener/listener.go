@@ -1,4 +1,4 @@
-package saltPackage
+package saltlistener
 
 import (
 	"fmt"
@@ -9,7 +9,7 @@ import (
 	"regexp"
 	"strings"
 )
-
+// Server variables
 type Server struct {
 	reqch chan request
 	msgch chan message
@@ -23,6 +23,7 @@ type request struct {
 	respch chan Response
 }
 
+// Response from server 
 type Response struct {
 	Payload map[string]interface{}
 }
@@ -31,16 +32,16 @@ type message struct {
 	tag     string
 	Payload map[string]interface{}
 }
-
+// Call tag
 func (srv *Server) Call(tag string, respch chan Response) {
 	srv.reqch <- request{tag: tag, respch: respch}
 }
-
+// Delete tag
 func (srv *Server) Delete(tag string) {
 	delete(srv.calls, tag)
 }
-
-func (srv *Server) Loop() {
+// Start server
+func (srv *Server) Start() {
 	for {
 		select {
 		case req := <-srv.reqch:
@@ -55,7 +56,7 @@ func (srv *Server) Loop() {
 		}
 	}
 }
-
+// ReadMessages from socket
 func (srv *Server) ReadMessages() error {
 	dec := msgpack.NewDecoder(srv.sock)
 	for {
@@ -69,17 +70,17 @@ func (srv *Server) ReadMessages() error {
 		if match {
 
 			var m2 map[string]interface{}
-			result_all := fmt.Sprint(m1_1)
-			result_list := strings.SplitN(result_all, "\n\n", 2)
-			tag := result_list[0]
-			byte_result := []byte(result_list[1])
-			_ = msgpack.Unmarshal(byte_result, &m2)
+			resultAll := fmt.Sprint(m1_1)
+			resultList := strings.SplitN(resultAll, "\n\n", 2)
+			tag := resultList[0]
+			byteResult := []byte(resultList[1])
+			_ = msgpack.Unmarshal(byteResult, &m2)
 			srv.msgch <- message{tag: tag, Payload: m2}
 
 		}
 	}
 }
-
+// NewServer creates a NewServer
 func NewServer() (srv *Server) {
 	ret, err := net.Dial("unix", "/var/run/salt/master/master_event_pub.ipc")
 	if err != nil {

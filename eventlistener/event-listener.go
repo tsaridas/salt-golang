@@ -16,11 +16,11 @@ func reader(r io.Reader) {
 		dec.Decode(&m1)
 		m1_1 := m1["body"].(string)
 		var m2 map[string]interface{}
-		result_all := fmt.Sprint(m1_1)
-		result_list := strings.SplitN(result_all, "\n\n", 2)
-		tag := result_list[0]
-		byte_result := []byte(result_list[1])
-		_ = msgpack.Unmarshal(byte_result, &m2)
+		resultAll := fmt.Sprint(m1_1)
+		resultList := strings.SplitN(resultAll, "\n\n", 2)
+		tag := resultList[0]
+		byteResult := []byte(resultList[1])
+		_ = msgpack.Unmarshal(byteResult, &m2)
 		fmt.Printf("Tag is %s and ret is %s\n\n", tag, m2)
 
 	}

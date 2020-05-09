@@ -1,21 +1,21 @@
 package config
 
 import (
-	"github.com/tsaridas/salt-golang/salt-minion/utils"
+	"github.com/tsaridas/salt-golang/lib/utils"
 	"gopkg.in/yaml.v2"
 	"io/ioutil"
 	"log"
 	"path/filepath"
 	"strings"
 )
-
-type conf struct {
+// Conf type config
+type Conf struct {
 	MasterIP string `yaml:"master"`
 	MinionID string `yaml:"id"`
 	Files    []string
 }
 
-func (c *conf) getConf(f string) {
+func (c *Conf) getConf(f string) {
 	filename, _ := filepath.Abs(f)
 	yamlFile, err := ioutil.ReadFile(filename)
 	if err != nil {
@@ -27,7 +27,7 @@ func (c *conf) getConf(f string) {
 	}
 }
 
-func (c *conf) getFiles() {
+func (c *Conf) getFiles() {
 	saltConfig := "/etc/salt/"
 	if file.Exists(saltConfig + "minion") {
 		c.Files = append(c.Files, "/etc/salt/minion")
@@ -42,8 +42,8 @@ func (c *conf) getFiles() {
 		}
 	}
 }
-
-func GetConfig() (allConf conf) {
+// GetConfig from default minion dir
+func GetConfig() (allConf Conf) {
 	allConf.getFiles()
 	for _, file := range allConf.Files {
 		allConf.getConf(file)

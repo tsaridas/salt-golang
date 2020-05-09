@@ -1,4 +1,4 @@
-package saltClient
+package saltclient
 
 import (
 	"fmt"
@@ -17,17 +17,17 @@ func check(e error) {
 	}
 }
 
-type Something struct {
+type data struct {
 	// Load   map[string]interface{}        `msgpack:"load"`
-	Load Event  `msgpack:"load"`
+	Load event  `msgpack:"load"`
 	Enc  string `msgpack:"enc"`
 }
 
-type Event struct {
+type event struct {
 	JID     string   `msgpack:"jid"`
 	Minions []string `msgpack:"minions"`
 }
-
+// GetJid : Generate a job identifier
 func GetJid() string {
 	t := time.Now().UnixNano()
 	str := strconv.FormatInt(t, 10)
@@ -35,15 +35,15 @@ func GetJid() string {
 	newstr := strings.Join(s, "")
 	return newstr
 }
-
+// SendCommand a command to SaltMaster
 func SendCommand(jid string, tgt string, targetType string, module string) {
 	delimiter := map[string]interface{}{"delimiter": ":", "show_timeout": true, "show_jid": false}
 	var arg [0]string
 	load := make(map[string]interface{})
 	dat, err := ioutil.ReadFile("/var/cache/salt/master/.root_key")
 	if targetType == "list" {
-		tgt_list := strings.Split(tgt, ",")
-		load = map[string]interface{}{"tgt_type": targetType, "jid": jid, "cmd": "publish", "tgt": tgt_list, "key": string(dat), "arg": arg, "fun": module, "kwargs": delimiter, "ret": "", "user": "root"}
+		tgtList := strings.Split(tgt, ",")
+		load = map[string]interface{}{"tgt_type": targetType, "jid": jid, "cmd": "publish", "tgt": tgtList, "key": string(dat), "arg": arg, "fun": module, "kwargs": delimiter, "ret": "", "user": "root"}
 	} else {
 		load = map[string]interface{}{"tgt_type": targetType, "jid": jid, "cmd": "publish", "tgt": tgt, "key": string(dat), "arg": arg, "fun": module, "kwargs": delimiter, "ret": "", "user": "root"}
 
@@ -67,9 +67,9 @@ func SendCommand(jid string, tgt string, targetType string, module string) {
 	if len(ret) == 0 {
 		fmt.Println("Did not get a return.")
 	}
-	byte_result := []byte(ret[0])
-	var item Something
+	byteResult := []byte(ret[0])
+	var item data
 	// var item map[string]interface{}
-	err = msgpack.Unmarshal(byte_result, &item)
+	err = msgpack.Unmarshal(byteResult, &item)
 	check(err)
 }
