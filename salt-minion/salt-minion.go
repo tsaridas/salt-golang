@@ -99,7 +99,7 @@ func main() {
 		msg := []byte(contents[0])
 		_, event := authentication.DecodeEvent(msg)
 		log.Printf("Got function : %s with event %s \n", event["fun"], event)
-		if event == nil {
+		if len(event) == 0 {
 			continue
 		}
 		jid := event["jid"].(string)

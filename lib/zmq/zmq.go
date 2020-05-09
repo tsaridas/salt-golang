@@ -1,4 +1,4 @@
-package mdapi
+package zmq
 
 import (
 	zmq "github.com/pebbe/zmq4"
@@ -7,9 +7,7 @@ import (
 	"time"
 )
 
-//  Structure of our class
-//  We access these properties only via class methods
-
+// Mdcli we access these properties only via class methods
 type Mdcli struct {
 	broker  string
 	client  *zmq.Socket   //  Socket to broker
@@ -19,9 +17,7 @@ type Mdcli struct {
 	poller  *zmq.Poller
 }
 
-//  ---------------------------------------------------------------------
-
-//  Connect or reconnect to broker.
+// ConnectToBroker or reconnect to broker.
 func (mdcli *Mdcli) ConnectToBroker() (err error) {
 	if mdcli.client != nil {
 		mdcli.client.Close()
@@ -48,11 +44,7 @@ func (mdcli *Mdcli) ConnectToBroker() (err error) {
 	return
 }
 
-//  Here we have the constructor and destructor for our mdcli class:
-
-//  ---------------------------------------------------------------------
-//  Constructor
-
+// NewMdcli Constructor
 func NewMdcli(broker string, verbose bool) (mdcli *Mdcli, err error) {
 
 	mdcli = &Mdcli{
@@ -66,9 +58,7 @@ func NewMdcli(broker string, verbose bool) (mdcli *Mdcli, err error) {
 	return
 }
 
-//  ---------------------------------------------------------------------
-//  Destructor
-
+// Close Destructor
 func (mdcli *Mdcli) Close() (err error) {
 	if mdcli.client != nil {
 		err = mdcli.client.Close()
@@ -82,21 +72,20 @@ func (mdcli *Mdcli) Close() (err error) {
 
 //  ---------------------------------------------------------------------
 
-//  Set request timeout.
+// SetTimeout request timeout.
 func (mdcli *Mdcli) SetTimeout(timeout time.Duration) {
 	mdcli.timeout = timeout
 }
 
-//  ---------------------------------------------------------------------
-
-//  Set request retries.
+// SetRetries Set request retries.
 func (mdcli *Mdcli) SetRetries(retries int) {
 	mdcli.retries = retries
 }
 
-//  Here is the send method. It sends a request to the broker and gets a
-//  reply even if it has to retry several times. It returns the reply
-//  message, or error if there was no reply after multiple attempts:
+// Send message
+// Here is the send method. It sends a request to the broker and gets a
+// reply even if it has to retry several times. It returns the reply
+// message, or error if there was no reply after multiple attempts:
 func (mdcli *Mdcli) Send(service string, request ...string) (reply []string, err error) {
 	//  Prefix request with protocol frames
 	//  Frame 1: "MDPCxy" (six bytes, MDP/Client x.y)
@@ -107,7 +96,7 @@ func (mdcli *Mdcli) Send(service string, request ...string) (reply []string, err
 	if mdcli.verbose {
 		log.Printf("I: send request service: %q\n", service)
 	}
-	for retries_left := mdcli.retries; retries_left > 0; retries_left-- {
+	for retriesLeft := mdcli.retries; retriesLeft > 0; retriesLeft-- {
 		_, err = mdcli.client.SendMessage(service)
 		if err != nil {
 			log.Printf("W: Got an error when sending message. %s", err)
@@ -141,12 +130,11 @@ func (mdcli *Mdcli) Send(service string, request ...string) (reply []string, err
 			}
 			reply = msg
 			return
-		} else {
-			if mdcli.verbose {
-				log.Println("W: no reply, reconnecting...")
-			}
-			mdcli.ConnectToBroker()
 		}
+		if mdcli.verbose {
+			log.Println("W: no reply, reconnecting...")
+		}
+		mdcli.ConnectToBroker()
 	}
 	return
 }

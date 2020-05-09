@@ -5,23 +5,13 @@
 package main
 
 import (
-	"crypto/aes"
-	"crypto/cipher"
-	"crypto/hmac"
-	"crypto/rand"
-	"crypto/rsa"
-	"crypto/sha1"
-	"crypto/sha256"
-	"crypto/x509"
-	b64 "encoding/base64"
-	"encoding/pem"
 	"fmt"
 	"github.com/mitchellh/mapstructure"
 	zmq "github.com/pebbe/zmq4"
 	"github.com/tsaridas/salt-golang/lib/rsa"
+	"github.com/tsaridas/salt-golang/lib/aes"
 	"github.com/tsaridas/salt-golang/lib/utils"
 	msgpack "github.com/vmihailenco/msgpack"
-	"io"
 	"io/ioutil"
 	"log"
 	"net"
@@ -31,9 +21,6 @@ import (
 	"time"
 )
 
-var aesKey []byte
-var hMac []byte
-var entireKey []byte
 var pubKeyMaster []byte
 var privKeyMaster []byte
 var rootKey []byte
@@ -63,58 +50,12 @@ type eventAes struct {
 	Token interface{} `mapstructure:",omitempty,token"`
 }
 
-// EncryptWithPublicKey encrypts data with public key
-func EncryptWithPublicKey(msg []byte, pub *rsa.PublicKey) []byte {
-	hash := sha1.New()
-	ciphertext, err := rsa.EncryptOAEP(hash, rand.Reader, pub, msg, nil)
-	if err != nil {
-		fmt.Println("Could not encrypt with pub key")
-	}
-	return ciphertext
-}
-
-// DecryptWithPrivateKey decrypts data with private key
-func DecryptWithPrivateKey(ciphertext []byte, priv *rsa.PrivateKey) []byte {
-	hash := sha1.New()
-	plaintext, err := rsa.DecryptOAEP(hash, rand.Reader, priv, ciphertext, nil)
-	if err != nil {
-		fmt.Printf("Could not decrypt with priv key with error %s\n", err)
-	}
-	return plaintext
-}
-
 func getKeys() {
-	keySize := 24
-	hmacSize := 32
-	key := make([]byte, keySize+hmacSize)
-	_, err := rand.Read(key)
-	if err != nil {
-		// handle error here
-	}
-	entireKey = []byte(b64.StdEncoding.EncodeToString(key))
-	aesKey = key[:keySize]
-	hMac = key[len(key)-hmacSize:]
-	log.Println("Generated AES key.")
-
 	masterPubKeyPath := "/etc/salt/pki/master/master.pub"
-	if _, err := os.Stat(masterPubKeyPath); err == nil {
-		pubKeyMaster, _ = ioutil.ReadFile(masterPubKeyPath)
-		log.Println("Loaded master public key.")
-	} else {
-		// ToDO: Generate it
-		log.Println("Master public key does not exist in path: ", masterPubKeyPath)
-		panic("Could not find master's public key")
-	}
-
 	masterPrivKeyPath := "/etc/salt/pki/master/master.pem"
-	if _, err := os.Stat(masterPrivKeyPath); err == nil {
-		privKeyMaster, _ = ioutil.ReadFile(masterPrivKeyPath)
-		log.Println("Loaded master public key.")
-	} else {
-		// ToDO: Generate it
-		log.Println("Master public key does not exist in path: ", masterPrivKeyPath)
-		panic("Could not find master's private key")
-	}
+	rsa.GeneratePEMKeys(masterPrivKeyPath, masterPubKeyPath)
+	pubKeyMaster, _ = ioutil.ReadFile(masterPubKeyPath)
+	privKeyMaster, _ = ioutil.ReadFile(masterPrivKeyPath)
 
 	rootKeyPath := "/var/cache/salt/master/.root_key"
 	if _, err := os.Stat(rootKeyPath); err == nil {
@@ -128,63 +69,6 @@ func getKeys() {
 
 }
 
-func cBCDecrypt(text []byte) (ciphertext []byte) {
-	ciphertext = text
-	block, err := aes.NewCipher(aesKey)
-	if err != nil {
-		panic(err)
-	}
-
-	iv := ciphertext[:aes.BlockSize]
-	ciphertext = ciphertext[aes.BlockSize:]
-
-	if len(ciphertext)%aes.BlockSize != 0 {
-		panic("ciphertext is not a multiple of the block size")
-	}
-
-	mode := cipher.NewCBCDecrypter(block, iv)
-
-	mode.CryptBlocks(ciphertext, ciphertext)
-	return
-}
-
-func cBCEncrypt(text []byte) (final []byte) {
-	cleartext := string(text)
-	cleartext = "pickle::" + cleartext
-
-	pad := aes.BlockSize - len(cleartext)%aes.BlockSize
-	upad := string(pad)
-
-	cleartext = cleartext + strings.Repeat(upad, pad)
-
-	plaintext := []byte(cleartext)
-
-	if len(plaintext)%aes.BlockSize != 0 {
-		panic("plaintext is not a multiple of the block size")
-	}
-
-	block, err := aes.NewCipher([]byte(aesKey))
-	if err != nil {
-		panic(err)
-	}
-
-	ciphertext := make([]byte, aes.BlockSize+len(plaintext))
-	iv := ciphertext[:aes.BlockSize]
-	if _, err := io.ReadFull(rand.Reader, iv); err != nil {
-		panic(err)
-	}
-
-	mode := cipher.NewCBCEncrypter(block, iv)
-	mode.CryptBlocks(ciphertext[aes.BlockSize:], plaintext)
-
-	h := hmac.New(sha256.New, hMac)
-	h.Write(ciphertext)
-
-	final = []byte(string(ciphertext) + string(h.Sum(nil)))
-
-	return
-}
-
 func (manager *clientManager) broadCast(tag string, message map[string]interface{}) {
 	p1, _ := msgpack.Marshal(message)
 	body := []string{tag, "\n\n", string(p1)}
@@ -194,7 +78,7 @@ func (manager *clientManager) broadCast(tag string, message map[string]interface
 	manager.broadcast <- []byte(payload)
 }
 
-func (manager *clientManager) workerRoutine(tcpPublisher *zmq.Socket) {
+func (manager *clientManager) workerRoutine(tcpPublisher *zmq.Socket, aes *aes.Secretkeys) {
 	//  Socket to talk to dispatcher
 	receiver, _ := zmq.NewSocket(zmq.REP)
 	defer receiver.Close()
@@ -210,7 +94,7 @@ func (manager *clientManager) workerRoutine(tcpPublisher *zmq.Socket) {
 		err = mapstructure.Decode(fEvent, &result)
 		if err != nil {
 			err = mapstructure.Decode(fEvent, &resultAes)
-			plaintext := cBCDecrypt([]byte(resultAes.Load))
+			plaintext := aes.CBCDecrypt([]byte(resultAes.Load))
 			withoutPickle := plaintext[8:]
 			var final map[string]interface{}
 			_ = msgpack.Unmarshal(withoutPickle, &final)
@@ -219,15 +103,11 @@ func (manager *clientManager) workerRoutine(tcpPublisher *zmq.Socket) {
 			if final["cmd"] == "_pillar" {
 				log.Printf("Received pillar event from %s\n", final["id"])
 				minionPubPath := "/etc/salt/pki/master/minions/salt-minion-01"
-				pubKeyB, _ := ioutil.ReadFile(minionPubPath)
-				pubPem, _ := pem.Decode([]byte(pubKeyB))
-				parsedKey, _ := x509.ParsePKIXPublicKey(pubPem.Bytes)
-				var pubKey *rsa.PublicKey
-				pubKey, _ = parsedKey.(*rsa.PublicKey)
-				encBlob := EncryptWithPublicKey(entireKey, pubKey)
+				pubKey, _ := rsa.LoadPemPubKeyFromFile(minionPubPath)
+				encBlob := rsa.EncryptWithPublicKey(aes.GetEntireKey(), pubKey)
 				emptyMap := map[string]interface{}{}
 				s, _ := msgpack.Marshal(emptyMap)
-				encPillar := cBCEncrypt([]byte(s))
+				encPillar := aes.CBCEncrypt([]byte(s))
 				reply := map[string]interface{}{"enc": "pub", "load": "", "key": encBlob, "pillar": encPillar}
 				payload, _ := msgpack.Marshal(reply)
 				//  Send reply back to client
@@ -243,7 +123,7 @@ func (manager *clientManager) workerRoutine(tcpPublisher *zmq.Socket) {
 				// reply to client
 				emptyMap := map[string]interface{}{}
 				mar, _ := msgpack.Marshal(emptyMap)
-				enc := cBCEncrypt([]byte(mar))
+				enc := aes.CBCEncrypt([]byte(mar))
 				data, _ := msgpack.Marshal(enc)
 
 				//  Send reply back to client
@@ -254,7 +134,7 @@ func (manager *clientManager) workerRoutine(tcpPublisher *zmq.Socket) {
 				log.Printf("Received %s event from %s, %+v\n", final["cmd"], final["id"], final)
 				emptyMap := map[string]interface{}{}
 				mar, _ := msgpack.Marshal(emptyMap)
-				enc := cBCEncrypt([]byte(mar))
+				enc := aes.CBCEncrypt([]byte(mar))
 				data, _ := msgpack.Marshal(enc)
 				//  Send reply back to client
 				receiver.Send(string(data), 0)
@@ -273,28 +153,22 @@ func (manager *clientManager) workerRoutine(tcpPublisher *zmq.Socket) {
 					if result.Load["token"] != nil {
 						encToken := []byte(result.Load["token"].(string))
 						// Here we try to decrypt token
-						privateKeyBlock, _ := pem.Decode(privKeyMaster)
-
-						var privateKey *rsa.PrivateKey
-						privateKey, privErr := x509.ParsePKCS1PrivateKey(privateKeyBlock.Bytes)
-						if privErr != nil {
-							log.Printf("Private Key error %s\n", privErr)
+						privateKey, err := rsa.LoadPrivKeyFromString(privKeyMaster)
+						if err != nil {
+							log.Println("Could not load Private key.")
 						}
-						token = DecryptWithPrivateKey(encToken, privateKey)
+						token = rsa.DecryptWithPrivateKey(encToken, privateKey)
 					}
 
 					// Try to create messages
-					pubPem, _ := pem.Decode([]byte(pubKey))
-					parsedKey, _ := x509.ParsePKIXPublicKey(pubPem.Bytes)
-					var pubKey *rsa.PublicKey
-					pubKey, _ = parsedKey.(*rsa.PublicKey)
-					encBlob := EncryptWithPublicKey([]byte(entireKey), pubKey)
+					publicKey, _ := rsa.LoadPubKeyFromString(string(pubKey))
+					encText := rsa.EncryptWithPublicKey([]byte(aes.GetEntireKey()), publicKey)
 					if token != nil {
-						Token = EncryptWithPublicKey([]byte(token), pubKey)
+						Token = rsa.EncryptWithPublicKey([]byte(token), publicKey)
 					}
 
 					//  Send reply back to client
-					reply := map[string]interface{}{"publish_port": "4505", "enc": "pub", "pub_key": string(pubKeyMaster), "aes": string(encBlob), "token": string(Token)}
+					reply := map[string]interface{}{"publish_port": "4505", "enc": "pub", "pub_key": string(pubKeyMaster), "aes": string(encText), "token": string(Token)}
 					payload, _ := msgpack.Marshal(reply)
 					receiver.Send(string(payload), 0)
 					log.Printf("Accepted connection from minion %s.", result.Load["id"])
@@ -310,14 +184,14 @@ func (manager *clientManager) workerRoutine(tcpPublisher *zmq.Socket) {
 			} else {
 				minionPubPathPre := fmt.Sprintf("/etc/salt/pki/master/minions_pre/%s", result.Load["id"])
 				sPub := result.Load["pub"].(string)
-				pubKey, err := rsakeys.LoadPubKeyFromString(sPub)
+				pubKey, err := rsa.LoadPubKeyFromString(sPub)
 				if err != nil {
 					log.Println("Could not load pubkey")
 				}
 				if !file.Exists(minionPubPathPre) {
-					rsakeys.SavePublicPEMKey(minionPubPathPre, *pubKey)
+					rsa.SavePublicPEMKey(minionPubPathPre, *pubKey)
 				}
-				log.Printf("Minion %s is not accepted.\n", result.Load["id"], pubKey)
+				log.Printf("Minion %s is not accepted.\n", result.Load["id"])
 
 				//  Send reply back to client
 				reply := map[string]interface{}{}
@@ -350,7 +224,7 @@ func (manager *clientManager) workerRoutine(tcpPublisher *zmq.Socket) {
 			// Publish event
 			command := map[string]interface{}{"tgt_type": result.Load["tgt_type"], "jid": jid, "tgt": result.Load["tgt"], "ret": "", "user": "sudo_vagrant", "arg": result.Load["arg"], "fun": result.Load["fun"]}
 			commandMar, _ := msgpack.Marshal(command)
-			encCommand := cBCEncrypt([]byte(commandMar))
+			encCommand := aes.CBCEncrypt([]byte(commandMar))
 			msg := map[string]interface{}{"load": encCommand, "enc": "aes", "sig": ""}
 			payload, _ = msgpack.Marshal(msg)
 			tcpPublisher.Send(string(payload), 0)
@@ -429,7 +303,7 @@ func getJid() string {
 
 func main() {
 	go getKeys()
-
+	aes := aes.NewRSAKeys()
 	if err := os.RemoveAll(sockAddr); err != nil {
 		log.Fatal(err)
 	}
@@ -463,10 +337,10 @@ func main() {
 	workers.Bind("inproc://workers")
 
 	//  Launch pool of worker goroutines
-	var nrWorkers int = 50
+	var nrWorkers int = 10
 	log.Printf("Started %d workers.\n", nrWorkers)
 	for threadNbr := 0; threadNbr < nrWorkers; threadNbr++ {
-		go manager.workerRoutine(publisher)
+		go manager.workerRoutine(publisher, aes)
 	}
 	//  Connect work threads to client threads via a queue proxy
 	log.Println("Starting proxy")

@@ -1,8 +1,9 @@
-package rsakeys
+package rsa
 
 import (
 	"crypto/rand"
 	"crypto/rsa"
+	"crypto/sha1"
 	"crypto/x509"
 	"encoding/pem"
 	"fmt"
@@ -41,6 +42,16 @@ func LoadPemKeyFromFile(fileName string) (privateKey *rsa.PrivateKey, err error)
 	}
 	return
 
+}
+
+// LoadPrivKeyFromString function
+func LoadPrivKeyFromString(privKey []byte) (privateKey *rsa.PrivateKey, err error) {
+	privPem, _ := pem.Decode(privKey)
+	privateKey, er := x509.ParsePKCS1PrivateKey(privPem.Bytes)
+	if er != nil {
+		return privateKey, er
+	}
+	return
 }
 
 // LoadPubKeyFromString function
@@ -105,6 +116,26 @@ func SavePublicPEMKey(fileName string, pubKey rsa.PublicKey) {
 
 	err = pem.Encode(pemfile, pemkey)
 	checkError(err)
+}
+
+// EncryptWithPublicKey function
+func EncryptWithPublicKey(ciphertext []byte, pubKey *rsa.PublicKey) []byte {
+	hash := sha1.New()
+	ciphertext, err := rsa.EncryptOAEP(hash, rand.Reader, pubKey, ciphertext, nil)
+	if err != nil {
+		fmt.Println("Could not encrypt with pub key")
+	}
+	return ciphertext
+}
+
+// DecryptWithPrivateKey decrypts data with private key
+func DecryptWithPrivateKey(ciphertext []byte, priv *rsa.PrivateKey) []byte {
+	hash := sha1.New()
+	plaintext, err := rsa.DecryptOAEP(hash, rand.Reader, priv, ciphertext, nil)
+	if err != nil {
+		fmt.Printf("Could not decrypt with priv key with error %s\n", err)
+	}
+	return plaintext
 }
 
 func checkError(err error) {

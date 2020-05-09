@@ -3,7 +3,7 @@ package main
 import (
 	"flag"
 	"fmt"
-	"github.com/tsaridas/salt-golang/zmqapi"
+	"github.com/tsaridas/salt-golang/lib/zmq"
 	"github.com/vmihailenco/msgpack"
 	"io"
 	"io/ioutil"
@@ -58,7 +58,7 @@ func sendJob(jid string, module string, arg []string) {
 	if len(os.Args) > 1 && os.Args[1] == "-v" {
 		verbose = true
 	}
-	session, _ := mdapi.NewMdcli("tcp://127.0.0.1:4506", verbose)
+	session, _ := zmq.NewMdcli("tcp://127.0.0.1:4506", verbose)
 
 	defer session.Close()
 	s := string(b)

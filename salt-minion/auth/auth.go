@@ -13,7 +13,7 @@ import (
 	"encoding/pem"
 	"fmt"
 	librsa "github.com/tsaridas/salt-golang/lib/rsa"
-	"github.com/tsaridas/salt-golang/zmqapi"
+	"github.com/tsaridas/salt-golang/lib/zmq"
 	"github.com/vmihailenco/msgpack"
 	"io"
 	"io/ioutil"
@@ -106,7 +106,7 @@ func (authentication *Auth) Reply(jid string, fun string, repl string) {
 	check(err)
 
 	var verbose bool
-	session, _ := mdapi.NewMdcli(authentication.masterIP, verbose)
+	session, _ := zmq.NewMdcli(authentication.masterIP, verbose)
 
 	defer session.Close()
 	stringPayload := string(payload)
@@ -130,7 +130,7 @@ func (authentication *Auth) Authenticate() {
 	check(err)
 
 	var verbose bool
-	session, _ := mdapi.NewMdcli(authentication.masterIP, verbose)
+	session, _ := zmq.NewMdcli(authentication.masterIP, verbose)
 	defer session.Close()
 
 	stringPayload := string(payload)
