@@ -1,32 +1,32 @@
 package main
 
 import (
-        "fmt"
-        client "github.com/tsaridas/salt-golang/api/client"
-        listener "github.com/tsaridas/salt-golang/api/listener"
-        "time"
-	"os"
 	"flag"
+	"fmt"
+	client "github.com/tsaridas/salt-golang/api/client"
+	listener "github.com/tsaridas/salt-golang/api/listener"
+	"os"
 	"strings"
+	"time"
 )
 
 func Usage() {
-        fmt.Println("Application Flags:")
-        flag.PrintDefaults()
-        os.Exit(0)
+	fmt.Println("Application Flags:")
+	flag.PrintDefaults()
+	os.Exit(0)
 }
 
 func main() {
-        s := listener.NewServer()
-        go s.Loop()
-        go s.ReadMessages()
+	s := listener.NewServer()
+	go s.Loop()
+	go s.ReadMessages()
 	var serverList string
 	var targetType string
 	var module string
 	if len(os.Args) < 3 {
-                Usage()
-        }
-	
+		Usage()
+	}
+
 	switch string(os.Args[1]) {
 	case "-L", "--list":
 		serverList = os.Args[2]
@@ -66,46 +66,44 @@ func main() {
 		module = os.Args[2]
 	}
 
-
-
 	jid := client.GetJid()
 	ch2 := make(chan listener.Response, 1000)
 	tag := ""
-	if targetType == "list"{
+	if targetType == "list" {
 		servers := strings.Split(serverList, ",")
 		for _, server := range servers {
-			tag = "salt/job/"+jid+"/ret/"+server
+			tag = "salt/job/" + jid + "/ret/" + server
 			s.Call(tag, ch2)
 		}
-	}else {
-                tag = "salt/job/" + jid + "/ret"
-                s.Call(tag, ch2)
-        }
+	} else {
+		tag = "salt/job/" + jid + "/ret"
+		s.Call(tag, ch2)
+	}
 	timeout := time.After(5 * time.Second)
 	client.SendCommand(jid, serverList, targetType, module)
 	found := make(map[string]bool)
-	for{
+	for {
 		select {
-			case ret := <-ch2:
-				fmt.Printf("%s:\n%s\n", ret.Payload["id"], "    True")
-				found[ret.Payload["id"].(string)] = true
-				if targetType == "list"{
-					servers := strings.Split(serverList, ",")
-					if len(servers) == len(found){
-						os.Exit(0)
+		case ret := <-ch2:
+			fmt.Printf("%s:\n%s\n", ret.Payload["id"], "    True")
+			found[ret.Payload["id"].(string)] = true
+			if targetType == "list" {
+				servers := strings.Split(serverList, ",")
+				if len(servers) == len(found) {
+					os.Exit(0)
+				}
+			}
+		case <-timeout:
+			if targetType == "list" {
+				servers := strings.Split(serverList, ",")
+				for _, server := range servers {
+					if _, ok := found[server]; !ok {
+						fmt.Printf("%s:\n%s\n", server, "    False")
 					}
 				}
-			case <-timeout:
-                        if targetType == "list"{
-                                servers := strings.Split(serverList, ",")
-                                for _, server := range servers {
-                                        if _, ok := found[server]; !ok {
-                                                fmt.Printf("%s:\n%s\n", server, "    False")
-                                        }
-                                }
-                                os.Exit(1)
-                        }
-                        os.Exit(1)
+				os.Exit(1)
+			}
+			os.Exit(1)
 		}
 	}
 }

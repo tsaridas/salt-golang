@@ -60,7 +60,10 @@ func (srv *Server) ReadMessages() error {
 	dec := msgpack.NewDecoder(srv.sock)
 	for {
 		var m1 map[string]interface{}
-		dec.Decode(&m1)
+		err := dec.Decode(&m1)
+		if err != nil {
+			continue
+		}
 		m1_1 := m1["body"].(string)
 		match, _ := regexp.MatchString("salt/job/[0-9]{20}/ret/.*", m1_1)
 		if match {

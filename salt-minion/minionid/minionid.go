@@ -1,11 +1,11 @@
 package minionid
 
 import (
+	"bufio"
+	"github.com/tsaridas/salt-golang/salt-minion/utils"
 	"net"
 	"os"
 	"strings"
-	"bufio"
-	"github.com/tsaridas/salt-golang/salt-minion/utils"
 )
 
 // Get Fully Qualified Domain Name
@@ -51,5 +51,5 @@ func Get() string {
 		return ""
 	}
 	return "network_id"
-	
+
 }

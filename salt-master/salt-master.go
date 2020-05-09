@@ -443,7 +443,7 @@ func main() {
 	workers.Bind("inproc://workers")
 
 	//  Launch pool of worker goroutines
-	var nr_workers int = 10
+	var nr_workers int = 50
 	log.Printf("Started %d workers.\n", nr_workers)
 	for thread_nbr := 0; thread_nbr < nr_workers; thread_nbr++ {
 		go manager.worker_routine(publisher)

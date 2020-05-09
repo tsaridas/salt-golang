@@ -13,7 +13,7 @@ import (
 
 func check(e error) {
 	if e != nil {
-		panic(e)
+		fmt.Println("Got error: ", e)
 	}
 }
 
@@ -41,12 +41,12 @@ func SendCommand(jid string, tgt string, targetType string, module string) {
 	var arg [0]string
 	load := make(map[string]interface{})
 	dat, err := ioutil.ReadFile("/var/cache/salt/master/.root_key")
-	if targetType == "list"{
-		tgt_list := strings.Split(tgt, ",")	
+	if targetType == "list" {
+		tgt_list := strings.Split(tgt, ",")
 		load = map[string]interface{}{"tgt_type": targetType, "jid": jid, "cmd": "publish", "tgt": tgt_list, "key": string(dat), "arg": arg, "fun": module, "kwargs": delimiter, "ret": "", "user": "root"}
 	} else {
 		load = map[string]interface{}{"tgt_type": targetType, "jid": jid, "cmd": "publish", "tgt": tgt, "key": string(dat), "arg": arg, "fun": module, "kwargs": delimiter, "ret": "", "user": "root"}
-		
+
 	}
 	check(err)
 	msg := map[string]interface{}{"load": load, "enc": "clear"}

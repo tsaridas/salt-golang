@@ -10,9 +10,9 @@ import (
 )
 
 type conf struct {
-	MasterIP   	string 		`yaml:"master"`
-	MinionID 	string 		`yaml:"id"`
-	Files	 	[]string 
+	MasterIP string `yaml:"master"`
+	MinionID string `yaml:"id"`
+	Files    []string
 }
 
 func (c *conf) getConf(f string) {
@@ -43,7 +43,7 @@ func (c *conf) getFiles() {
 	}
 }
 
-func GetConfig() (allConf conf){
+func GetConfig() (allConf conf) {
 	allConf.getFiles()
 	for _, file := range allConf.Files {
 		allConf.getConf(file)

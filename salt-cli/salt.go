@@ -10,10 +10,10 @@ import (
 	"log"
 	"net"
 	"os"
+	"reflect"
 	"strconv"
 	"strings"
 	"time"
-	"reflect"
 )
 
 var jidArray [1]string
@@ -144,7 +144,7 @@ func reader(m map[string]bool, jid string, module string, arg []string) {
 			}
 			ret := item["return"]
 			t := reflect.TypeOf(ret).Kind()
-			if t == reflect.Bool{
+			if t == reflect.Bool {
 				ret = "   True"
 			}
 			delete(m, item["id"].(string))
@@ -153,7 +153,7 @@ func reader(m map[string]bool, jid string, module string, arg []string) {
 				os.Exit(0)
 			}
 		case <-timeout:
-			for key, _ := range m{
+			for key, _ := range m {
 				fmt.Printf("%s:\n   false\n", key)
 			}
 			os.Exit(1)
@@ -178,19 +178,18 @@ func main() {
 	}
 	module := os.Args[3]
 	args := []string{}
-	for i, v := range os.Args{
-		if i >= 4{
+	for i, v := range os.Args {
+		if i >= 4 {
 			args = append(args, v)
 		}
 	}
 	tgts := strings.Split(serverList, ",")
 	for _, i := range tgts {
 		value, present := m[i]
-		if ! present {
-    			m[i] = value
+		if !present {
+			m[i] = value
 			tgt = append(tgt, i)
 		}
-
 
 	}
 	jid := getJid()
