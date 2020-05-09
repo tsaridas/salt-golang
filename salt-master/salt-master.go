@@ -29,33 +29,33 @@ import (
 	"time"
 )
 
-var aes_key []byte
-var h_mac []byte
-var entire_key []byte
-var pub_key_master []byte
-var priv_key_master []byte
-var root_key []byte
+var aesKey []byte
+var hMac []byte
+var entireKey []byte
+var pubKeyMaster []byte
+var privKeyMaster []byte
+var rootKey []byte
 
-const SockAddr = "/var/run/salt/master/master_event_pub.ipc"
+const sockAddr = "/var/run/salt/master/master_event_pub.ipc"
 
-type ClientManager struct {
-	clients    map[*Client]bool
+type clientManager struct {
+	clients    map[*client]bool
 	broadcast  chan []byte
-	register   chan *Client
-	unregister chan *Client
+	register   chan *client
+	unregister chan *client
 }
 
-type Client struct {
+type client struct {
 	socket net.Conn
 	data   chan []byte
 }
 
-type Event struct {
+type event struct {
 	Enc   interface{}            `mapstructure:",omitempty,enc"`
 	Load  map[string]interface{} `mapstructure:",omitempty,load"`
 	Token interface{}            `mapstructure:",omitempty,token"`
 }
-type EventAes struct {
+type eventAes struct {
 	Enc   interface{} `mapstructure:",omitempty,enc"`
 	Load  string      `mapstructure:",omitempty,load"`
 	Token interface{} `mapstructure:",omitempty,token"`
@@ -81,54 +81,54 @@ func DecryptWithPrivateKey(ciphertext []byte, priv *rsa.PrivateKey) []byte {
 	return plaintext
 }
 
-func get_keys() {
-	key_size := 24
-	hmac_size := 32
-	key := make([]byte, key_size+hmac_size)
+func getKeys() {
+	keySize := 24
+	hmacSize := 32
+	key := make([]byte, keySize+hmacSize)
 	_, err := rand.Read(key)
 	if err != nil {
 		// handle error here
 	}
-	entire_key = []byte(b64.StdEncoding.EncodeToString(key))
-	aes_key = key[:key_size]
-	h_mac = key[len(key)-hmac_size:]
+	entireKey = []byte(b64.StdEncoding.EncodeToString(key))
+	aesKey = key[:keySize]
+	hMac = key[len(key)-hmacSize:]
 	log.Println("Generated AES key.")
 
-	master_pub_key_path := "/etc/salt/pki/master/master.pub"
-	if _, err := os.Stat(master_pub_key_path); err == nil {
-		pub_key_master, _ = ioutil.ReadFile(master_pub_key_path)
+	masterPubKeyPath := "/etc/salt/pki/master/master.pub"
+	if _, err := os.Stat(masterPubKeyPath); err == nil {
+		pubKeyMaster, _ = ioutil.ReadFile(masterPubKeyPath)
 		log.Println("Loaded master public key.")
 	} else {
 		// ToDO: Generate it
-		log.Println("Master public key does not exist in path: ", master_pub_key_path)
+		log.Println("Master public key does not exist in path: ", masterPubKeyPath)
 		panic("Could not find master's public key")
 	}
 
-	master_priv_key_path := "/etc/salt/pki/master/master.pem"
-	if _, err := os.Stat(master_priv_key_path); err == nil {
-		priv_key_master, _ = ioutil.ReadFile(master_priv_key_path)
+	masterPrivKeyPath := "/etc/salt/pki/master/master.pem"
+	if _, err := os.Stat(masterPrivKeyPath); err == nil {
+		privKeyMaster, _ = ioutil.ReadFile(masterPrivKeyPath)
 		log.Println("Loaded master public key.")
 	} else {
 		// ToDO: Generate it
-		log.Println("Master public key does not exist in path: ", master_priv_key_path)
+		log.Println("Master public key does not exist in path: ", masterPrivKeyPath)
 		panic("Could not find master's private key")
 	}
 
-	root_key_path := "/var/cache/salt/master/.root_key"
-	if _, err := os.Stat(root_key_path); err == nil {
-		root_key, _ = ioutil.ReadFile(root_key_path)
+	rootKeyPath := "/var/cache/salt/master/.root_key"
+	if _, err := os.Stat(rootKeyPath); err == nil {
+		rootKey, _ = ioutil.ReadFile(rootKeyPath)
 		log.Println("Loaded master root key.")
 	} else {
 		// ToDO: Generate it
-		log.Println("Master root key does not exist in path: ", root_key_path)
+		log.Println("Master root key does not exist in path: ", rootKeyPath)
 		panic("Could not find master's private key")
 	}
 
 }
 
-func CBCDecrypt(text []byte) (ciphertext []byte) {
+func cBCDecrypt(text []byte) (ciphertext []byte) {
 	ciphertext = text
-	block, err := aes.NewCipher(aes_key)
+	block, err := aes.NewCipher(aesKey)
 	if err != nil {
 		panic(err)
 	}
@@ -146,7 +146,7 @@ func CBCDecrypt(text []byte) (ciphertext []byte) {
 	return
 }
 
-func CBCEncrypt(text []byte) (final []byte) {
+func cBCEncrypt(text []byte) (final []byte) {
 	cleartext := string(text)
 	cleartext = "pickle::" + cleartext
 
@@ -161,7 +161,7 @@ func CBCEncrypt(text []byte) (final []byte) {
 		panic("plaintext is not a multiple of the block size")
 	}
 
-	block, err := aes.NewCipher([]byte(aes_key))
+	block, err := aes.NewCipher([]byte(aesKey))
 	if err != nil {
 		panic(err)
 	}
@@ -175,7 +175,7 @@ func CBCEncrypt(text []byte) (final []byte) {
 	mode := cipher.NewCBCEncrypter(block, iv)
 	mode.CryptBlocks(ciphertext[aes.BlockSize:], plaintext)
 
-	h := hmac.New(sha256.New, h_mac)
+	h := hmac.New(sha256.New, hMac)
 	h.Write(ciphertext)
 
 	final = []byte(string(ciphertext) + string(h.Sum(nil)))
@@ -183,16 +183,16 @@ func CBCEncrypt(text []byte) (final []byte) {
 	return
 }
 
-func (manager *ClientManager) broadCast(tag string, message map[string]interface{}) {
+func (manager *clientManager) broadCast(tag string, message map[string]interface{}) {
 	p1, _ := msgpack.Marshal(message)
 	body := []string{tag, "\n\n", string(p1)}
-	join_body := strings.Join(body, "")
-	reply := map[string]interface{}{"body": join_body, "head": map[string]interface{}{}}
+	joinBody := strings.Join(body, "")
+	reply := map[string]interface{}{"body": joinBody, "head": map[string]interface{}{}}
 	payload, _ := msgpack.Marshal(reply)
 	manager.broadcast <- []byte(payload)
 }
 
-func (manager *ClientManager) worker_routine(tcp_publisher *zmq.Socket) {
+func (manager *clientManager) workerRoutine(tcpPublisher *zmq.Socket) {
 	//  Socket to talk to dispatcher
 	receiver, _ := zmq.NewSocket(zmq.REP)
 	defer receiver.Close()
@@ -200,35 +200,37 @@ func (manager *ClientManager) worker_routine(tcp_publisher *zmq.Socket) {
 	for {
 		msg, _ := receiver.Recv(0)
 		b := []byte(msg)
-		var event map[string]interface{}
-		err := msgpack.Unmarshal(b, &event)
-		//fmt.Printf("Received first data %s\n", event)
-		var result Event
-		var resultAes EventAes
-		err = mapstructure.Decode(event, &result)
+		var fEvent map[string]interface{}
+		err := msgpack.Unmarshal(b, &fEvent)
+		//fmt.Printf("Received first data %s\n", fEvent)
+		var result event
+		var resultAes eventAes
+		err = mapstructure.Decode(fEvent, &result)
 		if err != nil {
-			err = mapstructure.Decode(event, &resultAes)
-			plaintext := CBCDecrypt([]byte(resultAes.Load))
-			without_pickle := plaintext[8:]
+			err = mapstructure.Decode(fEvent, &resultAes)
+			plaintext := cBCDecrypt([]byte(resultAes.Load))
+			withoutPickle := plaintext[8:]
 			var final map[string]interface{}
-			_ = msgpack.Unmarshal(without_pickle, &final)
+			_ = msgpack.Unmarshal(withoutPickle, &final)
 
+			// This is done because official minion will not startup unless it receives this cmd
 			if final["cmd"] == "_pillar" {
 				log.Printf("Received pillar event from %s\n", final["id"])
-				minion_pub_path := "/etc/salt/pki/master/minions/salt-minion-01"
-				pub_key, _ := ioutil.ReadFile(minion_pub_path)
-				pubPem, _ := pem.Decode([]byte(pub_key))
+				minionPubPath := "/etc/salt/pki/master/minions/salt-minion-01"
+				pubKeyB, _ := ioutil.ReadFile(minionPubPath)
+				pubPem, _ := pem.Decode([]byte(pubKeyB))
 				parsedKey, _ := x509.ParsePKIXPublicKey(pubPem.Bytes)
 				var pubKey *rsa.PublicKey
 				pubKey, _ = parsedKey.(*rsa.PublicKey)
-				enc_blob := EncryptWithPublicKey(entire_key, pubKey)
-				empty_map := map[string]interface{}{}
-				s, _ := msgpack.Marshal(empty_map)
-				enc_pillar := CBCEncrypt([]byte(s))
-				reply := map[string]interface{}{"enc": "pub", "load": "", "key": enc_blob, "pillar": enc_pillar}
+				encBlob := EncryptWithPublicKey(entireKey, pubKey)
+				emptyMap := map[string]interface{}{}
+				s, _ := msgpack.Marshal(emptyMap)
+				encPillar := cBCEncrypt([]byte(s))
+				reply := map[string]interface{}{"enc": "pub", "load": "", "key": encBlob, "pillar": encPillar}
 				payload, _ := msgpack.Marshal(reply)
 				//  Send reply back to client
 				receiver.Send(string(payload), 0)
+				continue
 			} else if final["cmd"] == "_return" {
 				log.Printf("Received %s event from %s %+v\n", final["cmd"], final["id"], final)
 
@@ -237,60 +239,60 @@ func (manager *ClientManager) worker_routine(tcp_publisher *zmq.Socket) {
 				manager.broadCast(tag, final)
 
 				// reply to client
-				empty_map := map[string]interface{}{}
-				s, _ := msgpack.Marshal(empty_map)
-				enc_pillar := CBCEncrypt([]byte(s))
-				d, _ := msgpack.Marshal(enc_pillar)
+				emptyMap := map[string]interface{}{}
+				mar, _ := msgpack.Marshal(emptyMap)
+				enc := cBCEncrypt([]byte(mar))
+				data, _ := msgpack.Marshal(enc)
+
 				//  Send reply back to client
-				receiver.Send(string(d), 0)
+				receiver.Send(string(data), 0)
 				continue
 			} else {
-
+				// Unknown event
 				log.Printf("Received %s event from %s, %+v\n", final["cmd"], final["id"], final)
-				empty_map := map[string]interface{}{}
-				s, _ := msgpack.Marshal(empty_map)
-				enc_pillar := CBCEncrypt([]byte(s))
-				d, _ := msgpack.Marshal(enc_pillar)
+				emptyMap := map[string]interface{}{}
+				mar, _ := msgpack.Marshal(emptyMap)
+				enc := cBCEncrypt([]byte(mar))
+				data, _ := msgpack.Marshal(enc)
 				//  Send reply back to client
-				receiver.Send(string(d), 0)
+				receiver.Send(string(data), 0)
 				continue
 			}
 		}
 
 		if result.Load["cmd"] == "_auth" {
 			log.Printf("Received an authentication event from: %s\n", result.Load["id"])
-			minion_pub_path := fmt.Sprintf("/etc/salt/pki/master/minions/%s", result.Load["id"])
-			if _, err := os.Stat(minion_pub_path); err == nil {
-				pub_key, _ := ioutil.ReadFile(minion_pub_path)
-				if string(pub_key) == result.Load["pub"] {
-					master_priv_key, _ := ioutil.ReadFile("/etc/salt/pki/master/master.pem")
+			minionPubPath := fmt.Sprintf("/etc/salt/pki/master/minions/%s", result.Load["id"])
+			if _, err := os.Stat(minionPubPath); err == nil {
+				pubKey, _ := ioutil.ReadFile(minionPubPath)
+				if string(pubKey) == result.Load["pub"] {
 					var token []byte
 					var Token []byte
 					if result.Load["token"] != nil {
-						enc_token := []byte(result.Load["token"].(string))
+						encToken := []byte(result.Load["token"].(string))
 						// Here we try to decrypt token
-						privateKeyBlock, _ := pem.Decode(master_priv_key)
+						privateKeyBlock, _ := pem.Decode(privKeyMaster)
 
 						var privateKey *rsa.PrivateKey
-						privateKey, priv_err := x509.ParsePKCS1PrivateKey(privateKeyBlock.Bytes)
-						if priv_err != nil {
-							log.Printf("Private Key error %s\n", priv_err)
+						privateKey, privRrr := x509.ParsePKCS1PrivateKey(privateKeyBlock.Bytes)
+						if privRrr != nil {
+							log.Printf("Private Key error %s\n", privErr)
 						}
-						token = DecryptWithPrivateKey(enc_token, privateKey)
+						token = DecryptWithPrivateKey(encToken, privateKey)
 					}
 
 					// Try to create messages
-					pubPem, _ := pem.Decode([]byte(pub_key))
+					pubPem, _ := pem.Decode([]byte(pubKey))
 					parsedKey, _ := x509.ParsePKIXPublicKey(pubPem.Bytes)
 					var pubKey *rsa.PublicKey
 					pubKey, _ = parsedKey.(*rsa.PublicKey)
-					enc_blob := EncryptWithPublicKey([]byte(entire_key), pubKey)
+					encBlob := EncryptWithPublicKey([]byte(entireKey), pubKey)
 					if token != nil {
 						Token = EncryptWithPublicKey([]byte(token), pubKey)
 					}
 
 					//  Send reply back to client
-					reply := map[string]interface{}{"publish_port": "4505", "enc": "pub", "pub_key": string(pub_key_master), "aes": string(enc_blob), "token": string(Token)}
+					reply := map[string]interface{}{"publish_port": "4505", "enc": "pub", "pub_key": string(pubKeyMaster), "aes": string(encBlob), "token": string(Token)}
 					payload, _ := msgpack.Marshal(reply)
 					receiver.Send(string(payload), 0)
 					log.Printf("Accepted connection from minion %s.", result.Load["id"])
@@ -307,14 +309,13 @@ func (manager *ClientManager) worker_routine(tcp_publisher *zmq.Socket) {
 		} else if result.Load["cmd"] == "publish" {
 			log.Printf("Received a publish event:%+v\n", result)
 			var jid string
-			if val, ok := result.Load["jid"]; ok {
-				//jid = result.Load["jid"].(string)
+			if val,ok  := result.Load["jid"]; ok && val != "" {
 				jid = val.(string)
 			} else {
 				jid = getJid()
 			}
 
-			if string(root_key) != result.Load["key"] {
+			if string(rootKey) != result.Load["key"] {
 				log.Println("Root key did not match.")
 				reply := map[string]interface{}{"load": "Authentication Error", "enc": "clear"}
 				payload, _ := msgpack.Marshal(reply)
@@ -329,16 +330,16 @@ func (manager *ClientManager) worker_routine(tcp_publisher *zmq.Socket) {
 
 			// Publish event
 			command := map[string]interface{}{"tgt_type": result.Load["tgt_type"], "jid": jid, "tgt": result.Load["tgt"], "ret": "", "user": "sudo_vagrant", "arg": result.Load["arg"], "fun": result.Load["fun"]}
-			command_mar, _ := msgpack.Marshal(command)
-			enc_command := CBCEncrypt([]byte(command_mar))
-			msg := map[string]interface{}{"load": enc_command, "enc": "aes", "sig": ""}
+			commandMar, _ := msgpack.Marshal(command)
+			encCommand := cBCEncrypt([]byte(commandMar))
+			msg := map[string]interface{}{"load": encCommand, "enc": "aes", "sig": ""}
 			payload, _ = msgpack.Marshal(msg)
-			tcp_publisher.Send(string(payload), 0)
+			tcpPublisher.Send(string(payload), 0)
 		}
 	}
 }
 
-func (manager *ClientManager) start() {
+func (manager *clientManager) start() {
 	for {
 		select {
 		case connection := <-manager.register:
@@ -365,7 +366,7 @@ func (manager *ClientManager) start() {
 	}
 }
 
-func (manager *ClientManager) send(client *Client) {
+func (manager *clientManager) send(client *client) {
 	defer client.socket.Close()
 	for {
 		select {
@@ -378,12 +379,12 @@ func (manager *ClientManager) send(client *Client) {
 	}
 }
 
-func (manager *ClientManager) startServerMode() {
+func (manager *clientManager) startServerMode() {
 	log.Println("Starting IPC server...")
-	if err := os.RemoveAll(SockAddr); err != nil {
+	if err := os.RemoveAll(sockAddr); err != nil {
 		fmt.Println(err)
 	}
-	listener, error := net.Listen("unix", SockAddr)
+	listener, error := net.Listen("unix", sockAddr)
 	if error != nil {
 		fmt.Println(error)
 	}
@@ -393,7 +394,7 @@ func (manager *ClientManager) startServerMode() {
 		if error != nil {
 			fmt.Println(error)
 		}
-		client := &Client{socket: connection, data: make(chan []byte)}
+		client := &client{socket: connection, data: make(chan []byte)}
 		manager.register <- client
 		go manager.send(client)
 	}
@@ -408,9 +409,9 @@ func getJid() string {
 }
 
 func main() {
-	go get_keys()
+	go getKeys()
 
-	if err := os.RemoveAll(SockAddr); err != nil {
+	if err := os.RemoveAll(sockAddr); err != nil {
 		log.Fatal(err)
 	}
 
@@ -428,11 +429,11 @@ func main() {
 	log.Println("Started Publisher on port 4505.")
 
 	// Socket server to publish events to socket
-	manager := ClientManager{
-		clients:    make(map[*Client]bool),
+	manager := clientManager{
+		clients:    make(map[*client]bool),
 		broadcast:  make(chan []byte),
-		register:   make(chan *Client),
-		unregister: make(chan *Client),
+		register:   make(chan *client),
+		unregister: make(chan *client),
 	}
 
 	go manager.startServerMode()
@@ -443,10 +444,10 @@ func main() {
 	workers.Bind("inproc://workers")
 
 	//  Launch pool of worker goroutines
-	var nr_workers int = 50
-	log.Printf("Started %d workers.\n", nr_workers)
-	for thread_nbr := 0; thread_nbr < nr_workers; thread_nbr++ {
-		go manager.worker_routine(publisher)
+	var nrWorkers int = 50
+	log.Printf("Started %d workers.\n", nrWorkers)
+	for threadNbr := 0; threadNbr < nrWorkers; threadNbr++ {
+		go manager.workerRoutine(publisher)
 	}
 	//  Connect work threads to client threads via a queue proxy
 	log.Println("Starting proxy")

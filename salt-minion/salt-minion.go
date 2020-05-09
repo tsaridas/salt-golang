@@ -16,38 +16,34 @@ import (
 	"time"
 )
 
-type Greeter interface {
-	Greet()
-}
-
 func check(e error) {
 	if e != nil {
 		panic(e)
 	}
 }
 
-func Usage() {
+func usage() {
 	fmt.Println("Application Flags:")
 	flag.PrintDefaults()
 	os.Exit(0)
 }
 
 func main() {
-	var minion_id string
-	var master_ip string
+	var minionID string
+	var masterIP string
 	var help string
-	flag.StringVar(&minion_id, "id", "", "Salt Minion id")
-	flag.StringVar(&master_ip, "masterip", "", "Salt Master ip")
+	flag.StringVar(&minionID, "id", "", "Salt Minion id")
+	flag.StringVar(&masterIP, "masterip", "", "Salt Master ip")
 	flag.StringVar(&help, "h", "", "Get help options")
 	flag.Parse()
-	flag.Usage = Usage
+	flag.Usage = usage
 	if help != "" {
-		Usage()
+		usage()
 	}
 
 	conf := config.GetConfig()
-	if master_ip != "" {
-		log.Println("Using passed master ip :", master_ip)
+	if masterIP != "" {
+		log.Println("Using passed master ip :", masterIP)
 	} else if conf.MasterIP != "" {
 		addrs, err := net.LookupIP(conf.MasterIP)
 		if err != nil {
@@ -55,30 +51,30 @@ func main() {
 		}
 		v4 := addrs[0].To4()
 		mip, _ := v4.MarshalText()
-		master_ip = string(mip)
-		log.Println("Using configured master ip :", master_ip)
+		masterIP = string(mip)
+		log.Println("Using configured master ip :", masterIP)
 	} else {
 		log.Println("Please define a master ip.")
 		os.Exit(1)
 	}
 
-	SaltMasterPull := fmt.Sprintf("tcp://%s:4506", master_ip)
-	SaltMasterPub := fmt.Sprintf("tcp://%s:4505", master_ip)
+	SaltMasterPull := fmt.Sprintf("tcp://%s:4506", masterIP)
+	SaltMasterPub := fmt.Sprintf("tcp://%s:4505", masterIP)
 
-	if minion_id != "" {
-		log.Println("Using passed minion id :", minion_id)
+	if minionID != "" {
+		log.Println("Using passed minion id :", minionID)
 	} else if conf.MinionID != "" {
-		minion_id = conf.MinionID
-		log.Println("Using configured minion id :", minion_id)
-	} else if network_id := minionid.Get(); network_id != "" {
-		minion_id = network_id
-		log.Println("Using network minion id :", minion_id)
+		minionID = conf.MinionID
+		log.Println("Using configured minion id :", minionID)
+	} else if networkID := minionid.Get(); networkID != "" {
+		minionID = networkID
+		log.Println("Using network minion id :", minionID)
 	} else {
 		log.Println("Could not get a valid  minion id")
 		os.Exit(1)
 	}
 
-	authentication := auth.NewAuthenticator(SaltMasterPull, minion_id)
+	authentication := auth.NewAuthenticator(SaltMasterPull, minionID)
 	authentication.Authenticate()
 
 	for len(authentication.Auth_key) == 0 {
@@ -114,7 +110,7 @@ func main() {
 		reply := false
 		switch event["tgt_type"].(string) {
 		case "glob":
-			if glob.Glob(event["tgt"].(string), minion_id) {
+			if glob.Glob(event["tgt"].(string), minionID) {
 				reply = true
 			}
 		case "grain":
@@ -126,21 +122,21 @@ func main() {
 		case "list":
 			tgt := event["tgt"].([]interface{})
 			for _, element := range tgt {
-				if element == minion_id {
+				if element == minionID {
 					reply = true
 					break
 				}
 			}
 		default:
-			if glob.Glob(event["tgt"].(string), minion_id) {
+			if glob.Glob(event["tgt"].(string), minionID) {
 				reply = true
 			}
 		}
 		if reply {
-			mod_func := fmt.Sprintf("%s", event["fun"])
-			module_function := strings.Split(mod_func, ".")
-			module := fmt.Sprintf("./modules/%s.so", module_function[0])
-			function := module_function[1]
+			modFunc := fmt.Sprintf("%s", event["fun"])
+			moduleFunction := strings.Split(modFunc, ".")
+			module := fmt.Sprintf("./modules/%s.so", moduleFunction[0])
+			function := moduleFunction[1]
 			log.Printf("Got module %s and function %s and argument\n", module, function, arg)
 			plug, err := plugin.Open(module)
 			if err != nil {
@@ -157,6 +153,6 @@ func main() {
 			authentication.Reply(jid, fun, ret)
 			log.Printf("Replied to event : %s\n", event)
 		}
-			
+
 	}
 }

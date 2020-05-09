@@ -153,7 +153,7 @@ func reader(m map[string]bool, jid string, module string, arg []string) {
 				os.Exit(0)
 			}
 		case <-timeout:
-			for key, _ := range m {
+			for key := range m {
 				fmt.Printf("%s:\n   false\n", key)
 			}
 			os.Exit(1)
