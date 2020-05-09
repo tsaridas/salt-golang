@@ -6,14 +6,14 @@ import (
 	zmq "github.com/pebbe/zmq4"
 	"github.com/ryanuber/go-glob"
 	"github.com/tsaridas/salt-golang/salt-minion/auth"
-	"github.com/tsaridas/salt-golang/salt-minion/minionid"
 	"github.com/tsaridas/salt-golang/salt-minion/config"
+	"github.com/tsaridas/salt-golang/salt-minion/minionid"
 	"log"
-	"os"
 	"net"
-	"time"
+	"os"
 	"plugin"
 	"strings"
+	"time"
 )
 
 type Greeter interface {
@@ -48,7 +48,7 @@ func main() {
 	conf := config.GetConfig()
 	if master_ip != "" {
 		log.Println("Using passed master ip :", master_ip)
-	}else if conf.MasterIP != "" {
+	} else if conf.MasterIP != "" {
 		addrs, err := net.LookupIP(conf.MasterIP)
 		if err != nil {
 			log.Fatal("Unable to get master ip.")
@@ -57,18 +57,17 @@ func main() {
 		mip, _ := v4.MarshalText()
 		master_ip = string(mip)
 		log.Println("Using configured master ip :", master_ip)
-	}else {
+	} else {
 		log.Println("Please define a master ip.")
 		os.Exit(1)
 	}
-		
-	//SaltMasterPull := fmt.Sprintf("tcp://%s:9988", master_ip)
+
 	SaltMasterPull := fmt.Sprintf("tcp://%s:4506", master_ip)
 	SaltMasterPub := fmt.Sprintf("tcp://%s:4505", master_ip)
-		
+
 	if minion_id != "" {
 		log.Println("Using passed minion id :", minion_id)
-	}else if conf.MinionID != "" {	
+	} else if conf.MinionID != "" {
 		minion_id = conf.MinionID
 		log.Println("Using configured minion id :", minion_id)
 	} else if network_id := minionid.Get(); network_id != "" {
@@ -78,11 +77,10 @@ func main() {
 		log.Println("Could not get a valid  minion id")
 		os.Exit(1)
 	}
-		
-		
+
 	authentication := auth.NewAuthenticator(SaltMasterPull, minion_id)
 	authentication.Authenticate()
-	
+
 	for len(authentication.Auth_key) == 0 {
 		log.Println("Could not authenticate with Master. Please check that minion id is accepted. Retring in 10 seconds.")
 		time.Sleep(10 * time.Second)
@@ -112,30 +110,12 @@ func main() {
 		fun := event["fun"].(string)
 		arg := event["arg"].([]interface{})
 		ret := ""
-		
-		mod_func := fmt.Sprintf("%s", event["fun"])
-		module_function := strings.Split(mod_func, ".")
-		module := fmt.Sprintf("./modules/%s.so", module_function[0])
-		function := module_function[1]
-		log.Printf("Got module %s and function %s and argument\n", module, function, arg)
-		plug, err := plugin.Open(module)
-		if err != nil {
-			fmt.Println(err)
-			continue
-		}
-		mod, err := plug.Lookup(strings.Title(function))
-		if err != nil {
-			log.Printf("Could not load module %s", module)
-			ret = fmt.Sprintf("Could not load module %s.", module)
-		} else {
-			ret, err = mod.(func([]interface{})(string, error))(arg)
-		}
-		
+
+		reply := false
 		switch event["tgt_type"].(string) {
 		case "glob":
 			if glob.Glob(event["tgt"].(string), minion_id) {
-				log.Printf("Replied to event : %s\n", event)
-				authentication.Reply(jid, fun, ret)
+				reply = true
 			}
 		case "grain":
 			log.Printf("Got grain tgt_type for event : %s\n", event)
@@ -147,16 +127,36 @@ func main() {
 			tgt := event["tgt"].([]interface{})
 			for _, element := range tgt {
 				if element == minion_id {
-					authentication.Reply(jid, fun, ret)
-					log.Printf("Replied to event second : %s\n", event)
+					reply = true
 					break
 				}
 			}
 		default:
 			if glob.Glob(event["tgt"].(string), minion_id) {
-				log.Printf("Replied to event : %s\n", event)
-				authentication.Reply(jid, fun, ret)
+				reply = true
 			}
 		}
+		if reply {
+			mod_func := fmt.Sprintf("%s", event["fun"])
+			module_function := strings.Split(mod_func, ".")
+			module := fmt.Sprintf("./modules/%s.so", module_function[0])
+			function := module_function[1]
+			log.Printf("Got module %s and function %s and argument\n", module, function, arg)
+			plug, err := plugin.Open(module)
+			if err != nil {
+				fmt.Println(err)
+				continue
+			}
+			mod, err := plug.Lookup(strings.Title(function))
+			if err != nil {
+				log.Printf("Could not load module %s", module)
+				ret = fmt.Sprintf("Could not load module %s.", module)
+			} else {
+				ret, err = mod.(func([]interface{}) (string, error))(arg)
+			}
+			authentication.Reply(jid, fun, ret)
+			log.Printf("Replied to event : %s\n", event)
+		}
+			
 	}
 }

@@ -83,7 +83,7 @@ func (authentication *Auth) DecodeEvent(buffer []byte) (tag string, event map[st
 }
 
 func (authentication *Auth) Reply(jid string, fun string, repl string) {
-	load := map[string]interface{}{"retcode": 0, "success": true, "cmd": "_return", "_stamp": "2019-02-24T07:21:16.549817", "fun": fun, "id": authentication.minion_id, "jid": jid, "return": repl}
+        load := map[string]interface{}{"retcode": 0, "success": true, "cmd": "_return", "fun": fun, "id": authentication.minion_id, "jid": jid, "return": repl, "fun_args": []string{}}
 
 	payload, err := msgpack.Marshal(load)
 	check(err)
@@ -94,7 +94,7 @@ func (authentication *Auth) Reply(jid string, fun string, repl string) {
 	string_ciphertext := string(ciphertext)
 	string_ciphertext = string_ciphertext + string(hash.Sum(nil))
 
-	msg := map[string]interface{}{"load": []byte(string_ciphertext), "enc": "aes"}
+        msg := map[string]interface{}{"load": string(string_ciphertext), "enc": "aes"}
 
 	payload, err = msgpack.Marshal(msg)
 	check(err)
