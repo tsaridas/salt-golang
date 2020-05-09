@@ -9,6 +9,7 @@ import (
 	"regexp"
 	"strings"
 )
+
 // Server variables
 type Server struct {
 	reqch chan request
@@ -23,7 +24,7 @@ type request struct {
 	respch chan Response
 }
 
-// Response from server 
+// Response from server
 type Response struct {
 	Payload map[string]interface{}
 }
@@ -32,14 +33,17 @@ type message struct {
 	tag     string
 	Payload map[string]interface{}
 }
+
 // Call tag
 func (srv *Server) Call(tag string, respch chan Response) {
 	srv.reqch <- request{tag: tag, respch: respch}
 }
+
 // Delete tag
 func (srv *Server) Delete(tag string) {
 	delete(srv.calls, tag)
 }
+
 // Start server
 func (srv *Server) Start() {
 	for {
@@ -56,6 +60,7 @@ func (srv *Server) Start() {
 		}
 	}
 }
+
 // ReadMessages from socket
 func (srv *Server) ReadMessages() error {
 	dec := msgpack.NewDecoder(srv.sock)
@@ -80,6 +85,7 @@ func (srv *Server) ReadMessages() error {
 		}
 	}
 }
+
 // NewServer creates a NewServer
 func NewServer() (srv *Server) {
 	ret, err := net.Dial("unix", "/var/run/salt/master/master_event_pub.ipc")

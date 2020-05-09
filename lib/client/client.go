@@ -27,6 +27,7 @@ type event struct {
 	JID     string   `msgpack:"jid"`
 	Minions []string `msgpack:"minions"`
 }
+
 // GetJid : Generate a job identifier
 func GetJid() string {
 	t := time.Now().UnixNano()
@@ -35,6 +36,7 @@ func GetJid() string {
 	newstr := strings.Join(s, "")
 	return newstr
 }
+
 // SendCommand a command to SaltMaster
 func SendCommand(jid string, tgt string, targetType string, module string) {
 	delimiter := map[string]interface{}{"delimiter": ":", "show_timeout": true, "show_jid": false}

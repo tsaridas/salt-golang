@@ -8,6 +8,7 @@ import (
 	"path/filepath"
 	"strings"
 )
+
 // Conf type config
 type Conf struct {
 	MasterIP string `yaml:"master"`
@@ -42,6 +43,7 @@ func (c *Conf) getFiles() {
 		}
 	}
 }
+
 // GetConfig from default minion dir
 func GetConfig() (allConf Conf) {
 	allConf.getFiles()

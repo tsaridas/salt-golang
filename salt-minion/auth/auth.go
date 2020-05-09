@@ -12,23 +12,24 @@ import (
 	"encoding/base64"
 	"encoding/pem"
 	"fmt"
-	"github.com/tsaridas/salt-golang/zmqapi"
 	librsa "github.com/tsaridas/salt-golang/lib/rsa"
+	"github.com/tsaridas/salt-golang/zmqapi"
 	"github.com/vmihailenco/msgpack"
 	"io"
 	"io/ioutil"
 	"log"
 	"strings"
 )
+
 // Auth struct
 type Auth struct {
-	AuthKey   []byte
-	aesKey    string
-	hmaKkey   string
-	masterIP  string
-	minionID  string
+	AuthKey    []byte
+	aesKey     string
+	hmaKkey    string
+	masterIP   string
+	minionID   string
 	minionPriv string
-	minionPub string
+	minionPub  string
 }
 
 func check(e error) {
@@ -43,6 +44,7 @@ func (authentication *Auth) setKeys(keys []byte) {
 	authentication.aesKey = string(aes)
 	authentication.hmaKkey = string(hmac)
 }
+
 // NewAuthenticator object
 func NewAuthenticator(masterIP string, minionID string) (authentication *Auth) {
 	minionPub := "/etc/salt/pki/minion/minion.pub"
@@ -51,6 +53,7 @@ func NewAuthenticator(masterIP string, minionID string) (authentication *Auth) {
 	authentication = &Auth{masterIP: masterIP, minionID: minionID, minionPub: minionPub, minionPriv: minionPriv}
 	return
 }
+
 // DecodeEvent data
 func (authentication *Auth) DecodeEvent(buffer []byte) (tag string, event map[string]interface{}) {
 	var unmarshalled map[string]string
@@ -83,6 +86,7 @@ func (authentication *Auth) DecodeEvent(buffer []byte) (tag string, event map[st
 	return tag, event
 
 }
+
 // Reply to master
 func (authentication *Auth) Reply(jid string, fun string, repl string) {
 	load := map[string]interface{}{"retcode": 0, "success": true, "cmd": "_return", "fun": fun, "id": authentication.minionID, "jid": jid, "return": repl, "fun_args": []string{}}
@@ -113,6 +117,7 @@ func (authentication *Auth) Reply(jid string, fun string, repl string) {
 	}
 	return
 }
+
 // Authenticate to master
 func (authentication *Auth) Authenticate() {
 	pubKey, err := ioutil.ReadFile(authentication.minionPub)
@@ -166,6 +171,7 @@ func (authentication *Auth) Authenticate() {
 	}
 	authentication.setKeys(authKey)
 }
+
 // CBCDecrypt load
 func (authentication *Auth) CBCDecrypt(text []byte) (ciphertext []byte) {
 	ciphertext = text
@@ -186,6 +192,7 @@ func (authentication *Auth) CBCDecrypt(text []byte) (ciphertext []byte) {
 	mode.CryptBlocks(ciphertext, ciphertext)
 	return
 }
+
 // CBCEncrypt load
 func (authentication *Auth) CBCEncrypt(text []byte) (ciphertext []byte) {
 	cleartext := string(text)

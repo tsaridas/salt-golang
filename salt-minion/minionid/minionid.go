@@ -37,6 +37,7 @@ func getNetwork() string {
 	}
 	return hostname
 }
+
 // Get minion id
 func Get() string {
 	if file.Exists("/etc/salt/minion_id") {
