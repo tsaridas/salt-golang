@@ -8,8 +8,8 @@ import (
 	"fmt"
 	"github.com/mitchellh/mapstructure"
 	zmq "github.com/pebbe/zmq4"
-	"github.com/tsaridas/salt-golang/lib/rsa"
 	"github.com/tsaridas/salt-golang/lib/aes"
+	"github.com/tsaridas/salt-golang/lib/rsa"
 	"github.com/tsaridas/salt-golang/lib/utils"
 	msgpack "github.com/vmihailenco/msgpack"
 	"io/ioutil"
@@ -237,7 +237,7 @@ func (manager *clientManager) start() {
 		select {
 		case connection := <-manager.register:
 			manager.clients[connection] = true
-			log.Println("Received new ipc connection.", manager.clients)
+			log.Println("Received a new ipc connection.", manager.clients)
 		case message := <-manager.broadcast:
 			for connection := range manager.clients {
 				var buffer []byte

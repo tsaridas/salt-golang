@@ -8,6 +8,7 @@ import (
 	"net"
 	"regexp"
 	"strings"
+	"time"
 )
 
 // Server variables
@@ -16,7 +17,7 @@ type Server struct {
 	msgch chan message
 	calls map[string]chan Response
 	sock  io.Reader
-	buf   []byte
+	Net   net.Conn
 }
 
 type request struct {
@@ -34,8 +35,8 @@ type message struct {
 	Payload map[string]interface{}
 }
 
-// Call tag
-func (srv *Server) Call(tag string, respch chan Response) {
+// Register tag
+func (srv *Server) Register(tag string, respch chan Response) {
 	srv.reqch <- request{tag: tag, respch: respch}
 }
 
@@ -61,14 +62,26 @@ func (srv *Server) Start() {
 	}
 }
 
+// CheckConnection function
+func (srv *Server) CheckConnection() error {
+	var buffer []byte
+	_, err := srv.Net.Write(buffer)
+	if err != nil {
+		log.Println("The connection is down")
+		return err
+
+	}
+	return nil
+}
+
 // ReadMessages from socket
-func (srv *Server) ReadMessages() error {
+func (srv *Server) ReadMessages() {
 	dec := msgpack.NewDecoder(srv.sock)
 	for {
 		var m1 map[string]interface{}
 		err := dec.Decode(&m1)
 		if err != nil {
-			continue
+			break
 		}
 		m1_1 := m1["body"].(string)
 		match, _ := regexp.MatchString("salt/job/[0-9]{20}/ret/.*", m1_1)
@@ -84,18 +97,37 @@ func (srv *Server) ReadMessages() error {
 
 		}
 	}
+	srv.Connect()
+	return
+}
+
+// Connect to socket
+func (srv *Server) Connect() {
+	var sock net.Conn
+	var err error
+	for {
+		sock, err = net.Dial("unix", "/var/run/salt/master/master_event_pub.ipc")
+		if err != nil {
+			log.Println("Could not connect to socket", err)
+			//srv.Net.Close()
+			//sock.Close()
+			time.Sleep(2 * time.Second)
+			continue
+		}
+		break
+	}
+	srv.Net = sock
+	srv.sock = sock
+	go srv.ReadMessages()
 }
 
 // NewServer creates a NewServer
 func NewServer() (srv *Server) {
-	ret, err := net.Dial("unix", "/var/run/salt/master/master_event_pub.ipc")
-	if err != nil {
-		log.Fatal("Could not connect to socket", err)
-	}
-	buf := make([]byte, 102400)
-	m := make(map[string]chan Response, 10000)
-	ch0 := make(chan request, 10000)
-	ch1 := make(chan message, 10000)
-	srv = &Server{sock: ret, reqch: ch0, msgch: ch1, calls: m, buf: buf}
+	calls := make(map[string]chan Response, 10000)
+	reqch := make(chan request, 10000)
+	msgch := make(chan message, 10000)
+	srv = &Server{reqch: reqch, msgch: msgch, calls: calls}
+	srv.Connect()
+	go srv.ReadMessages()
 	return
 }
