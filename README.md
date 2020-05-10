@@ -153,7 +153,7 @@ You can cd to any runnable directory and run the build
 [root@salt-master salt-golang]# ./salt
 Application Flags:
   -L string
-    	Minion comma seperated list of minions.
+    	Minion comma separated list of minions.
 ```
 
 ## Tested

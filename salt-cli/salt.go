@@ -170,7 +170,7 @@ func usage() {
 func main() {
 	m := map[string]bool{}
 	var serverList string
-	flag.StringVar(&serverList, "L", "", "Minion comma seperated list of minions.")
+	flag.StringVar(&serverList, "L", "", "Minion comma separated list of minions.")
 	flag.Parse()
 	flag.Usage = usage
 	if len(os.Args) < 4 {
