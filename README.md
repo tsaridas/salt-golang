@@ -1,3 +1,5 @@
+[![Go Report Card](https://goreportcard.com/badge/gojp/goreportcard)](https://goreportcard.com/report/github.com/tsaridas/salt-golang) 
+
 # Saltstack event-listener, salt cli client, salt-minion, salt-master, salt-api Proof of Concept in golang.
 
 ## Disclaimer
