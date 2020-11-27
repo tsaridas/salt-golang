@@ -121,6 +121,11 @@ func (srv *Server) Connect() {
 	go srv.ReadMessages()
 }
 
+func (srv *Server) Call(tag string, respch chan Response) {
+	srv.reqch <- request{tag: tag, respch: respch}
+	fmt.Println("Added tag", tag)
+}
+
 // NewServer creates a NewServer
 func NewServer() (srv *Server) {
 	calls := make(map[string]chan Response, 10000)
