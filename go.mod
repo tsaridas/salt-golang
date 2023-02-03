@@ -9,7 +9,6 @@ require (
 	github.com/mitchellh/mapstructure v1.5.0
 	github.com/pebbe/zmq4 v1.2.9
 	github.com/ryanuber/go-glob v1.0.0
-	github.com/tsaridas/salt-golang v0.0.0-00010101000000-000000000000
 	github.com/vmihailenco/msgpack v4.0.4+incompatible
 	gopkg.in/yaml.v2 v2.4.0
 )
