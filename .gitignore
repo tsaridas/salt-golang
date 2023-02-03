@@ -1,2 +1,14 @@
 *.swp
 *.so
+*~
+
+go.sum
+
+# Binaries
+eventlistener/eventlistener
+salt-api/salt-api
+salt-cli/salt-cli
+salt-cli-v2/salt-cli-v2
+salt-master/salt-master
+salt-minion/salt-minion
+
