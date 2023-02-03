@@ -2,13 +2,14 @@ package saltlistener
 
 import (
 	"fmt"
-	"github.com/vmihailenco/msgpack"
 	"io"
 	"log"
 	"net"
 	"regexp"
 	"strings"
 	"time"
+
+	"github.com/vmihailenco/msgpack"
 )
 
 // Server variables
@@ -119,6 +120,11 @@ func (srv *Server) Connect() {
 	srv.Net = sock
 	srv.sock = sock
 	go srv.ReadMessages()
+}
+
+func (srv *Server) Call(tag string, respch chan Response) {
+	srv.reqch <- request{tag: tag, respch: respch}
+	fmt.Println("Added tag", tag)
 }
 
 // NewServer creates a NewServer

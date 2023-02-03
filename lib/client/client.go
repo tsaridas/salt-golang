@@ -2,23 +2,23 @@ package saltclient
 
 import (
 	"fmt"
-	"github.com/tsaridas/salt-golang/lib/zmq"
-	"github.com/vmihailenco/msgpack"
 	"io/ioutil"
-	"os"
 	"strconv"
 	"strings"
 	"time"
+
+	"github.com/tsaridas/salt-golang/lib/zmq"
+	"github.com/vmihailenco/msgpack"
 )
 
-func check(e error) {
-	if e != nil {
-		fmt.Println("Got error: ", e)
-	}
+type Client struct {
+	Server      string // "tcp://127.0.0.1:4506"
+	Verbose     bool
+	RootKeyPath string
 }
 
 type data struct {
-	// Load   map[string]interface{}        `msgpack:"load"`
+	// Load   map[string]any        `msgpack:"load"`
 	Load event  `msgpack:"load"`
 	Enc  string `msgpack:"enc"`
 }
@@ -29,7 +29,7 @@ type event struct {
 }
 
 // GetJid : Generate a job identifier
-func GetJid() string {
+func (c *Client) GetJid() string {
 	t := time.Now().UnixNano()
 	str := strconv.FormatInt(t, 10)
 	s := []string{str, "1"}
@@ -38,40 +38,78 @@ func GetJid() string {
 }
 
 // SendCommand a command to SaltMaster
-func SendCommand(jid string, tgt string, targetType string, module string) {
-	delimiter := map[string]interface{}{"delimiter": ":", "show_timeout": true, "show_jid": false}
-	var arg [0]string
-	load := make(map[string]interface{})
-	dat, err := ioutil.ReadFile("/var/cache/salt/master/.root_key")
+func (c *Client) SendCommand(jid string, tgt string, targetType string, module string) error {
+	delimiter := map[string]any{
+		"delimiter":    ":",
+		"show_timeout": true,
+		"show_jid":     false,
+	}
+	load := make(map[string]any)
+
+	if c.RootKeyPath == "" {
+		c.RootKeyPath = "/var/cache/salt/master/.root_key"
+	}
+
+	dat, err := ioutil.ReadFile(c.RootKeyPath)
 	if targetType == "list" {
 		tgtList := strings.Split(tgt, ",")
-		load = map[string]interface{}{"tgt_type": targetType, "jid": jid, "cmd": "publish", "tgt": tgtList, "key": string(dat), "arg": arg, "fun": module, "kwargs": delimiter, "ret": "", "user": "root"}
+		load = map[string]any{
+			"tgt_type": targetType,
+			"jid":      jid,
+			"cmd":      "publish",
+			"tgt":      tgtList,
+			"key":      string(dat),
+			"arg":      []string{},
+			"fun":      module,
+			"kwargs":   delimiter,
+			"ret":      "",
+			"user":     "root",
+		}
 	} else {
-		load = map[string]interface{}{"tgt_type": targetType, "jid": jid, "cmd": "publish", "tgt": tgt, "key": string(dat), "arg": arg, "fun": module, "kwargs": delimiter, "ret": "", "user": "root"}
-
+		load = map[string]any{
+			"tgt_type": targetType,
+			"jid":      jid,
+			"cmd":      "publish",
+			"tgt":      tgt,
+			"key":      string(dat),
+			"arg":      []string{},
+			"fun":      module,
+			"kwargs":   delimiter,
+			"ret":      "",
+			"user":     "root",
+		}
 	}
-	check(err)
-	msg := map[string]interface{}{"load": load, "enc": "clear"}
+	if err != nil {
+		return err
+	}
+	msg := map[string]any{
+		"load": load,
+		"enc":  "clear",
+	}
 
 	b, err := msgpack.Marshal(msg)
-	check(err)
-
-	var verbose bool
-	if len(os.Args) > 1 && os.Args[1] == "-v" {
-		verbose = true
+	if err != nil {
+		return err
 	}
-	session, _ := zmq.NewMdcli("tcp://127.0.0.1:4506", verbose)
+
+	if c.Server == "" {
+		c.Server = "tcp://127.0.0.1:4506"
+	}
+
+	session, _ := zmq.NewMdcli(c.Server, c.Verbose)
 	defer session.Close()
 	s := string(b)
 	ret, err := session.Send(s)
-	check(err)
+	if err != nil {
+		return err
+	}
 
 	if len(ret) == 0 {
 		fmt.Println("Did not get a return.")
 	}
 	byteResult := []byte(ret[0])
 	var item data
-	// var item map[string]interface{}
+	// var item map[string]any
 	err = msgpack.Unmarshal(byteResult, &item)
-	check(err)
+	return err
 }
