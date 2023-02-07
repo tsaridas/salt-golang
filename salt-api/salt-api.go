@@ -2,23 +2,33 @@ package main
 
 import (
 	"encoding/json"
-	"github.com/julienschmidt/httprouter"
-	client "github.com/tsaridas/salt-golang/lib/client"
-	listener "github.com/tsaridas/salt-golang/lib/listener"
 	"log"
 	"net/http"
 	"time"
+
+	"github.com/julienschmidt/httprouter"
+	client "github.com/tsaridas/salt-golang/lib/client"
+	listener "github.com/tsaridas/salt-golang/lib/listener"
 )
 
 func getMinionID(listen *listener.Server) httprouter.Handle {
 	return func(w http.ResponseWriter, req *http.Request, ps httprouter.Params) {
-		jid := client.GetJid()
+		c := client.Client{
+			Server:  "tcp://127.0.0.1:4506",
+			Verbose: false,
+		}
+
+		jid := c.GetJid()
 		tag := "salt/job/" + jid + "/ret/" + ps.ByName("minion-id")
 		ch2 := make(chan listener.Response, 1000)
 		listen.Register(tag, ch2)
 		timeout := time.After(5 * time.Second)
 		log.Println("Sending command to:", ps.ByName("minion-id"), ".")
-		client.SendCommand(jid, ps.ByName("minion-id"), "list", "test.ping")
+		err := c.SendCommand(jid, ps.ByName("minion-id"), "list", "test.ping")
+		if err != nil {
+			log.Printf("ERR: %s", err.Error())
+			return
+		}
 		select {
 		case ret := <-ch2:
 			log.Println("Got result from:", ps.ByName("minion-id"), ".")

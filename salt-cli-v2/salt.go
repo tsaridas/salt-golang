@@ -3,11 +3,12 @@ package main
 import (
 	"flag"
 	"fmt"
-	client "github.com/tsaridas/salt-golang/lib/client"
-	listener "github.com/tsaridas/salt-golang/lib/listener"
 	"os"
 	"strings"
 	"time"
+
+	client "github.com/tsaridas/salt-golang/lib/client"
+	listener "github.com/tsaridas/salt-golang/lib/listener"
 )
 
 func usage() {
@@ -66,7 +67,12 @@ func main() {
 		module = os.Args[2]
 	}
 
-	jid := client.GetJid()
+	c := client.Client{
+		Server:  "tcp://127.0.0.1:4506",
+		Verbose: false,
+	}
+
+	jid := c.GetJid()
 	ch2 := make(chan listener.Response, 1000)
 	tag := ""
 	if targetType == "list" {
@@ -80,7 +86,10 @@ func main() {
 		s.Call(tag, ch2)
 	}
 	timeout := time.After(5 * time.Second)
-	client.SendCommand(jid, serverList, targetType, module)
+	err := c.SendCommand(jid, serverList, targetType, module)
+	if err != nil {
+		panic(err)
+	}
 	found := make(map[string]bool)
 	for {
 		select {
