@@ -23,9 +23,8 @@ func reader(r io.Reader) {
 		var m1 map[string]interface{}
 		dec.Decode(&m1)
 		m1_1 := m1["body"].([]uint8)
-		s_var := B2S(m1_1)
+		s_var := b2s(m1_1)
 		var m2 map[string]interface{}
-		resultAll := fmt.Sprint(m1_1)
 		resultList := strings.Split(s_var, "\n\n")
 		tag := resultList[0]
 		byteResult := []byte(resultList[1])
